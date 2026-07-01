@@ -42,23 +42,23 @@ router_settings:
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
 
-# No database_url on purpose (decision, not an oversight): Postgres only
-# backs LiteLLM's *optional* layer — dynamically-issued virtual keys,
-# per-key spend tracking, and the Admin UI usage dashboard. The core
-# proxy (model-alias routing above) doesn't need a database at all.
+# Postgres is back (reversing an earlier "no DB" attempt): this LiteLLM
+# build has a hard dependency on a DB connection existing for key auth —
+# even a correct master key fails with a misleading "No connected db"
+# error if neither prisma_client nor custom_db_client is configured
+# (a known LiteLLM limitation, not something fixable from config alone).
 #
-# Trade-off accepted for now: without a DB, there's no separate
-# "scoped, revocable" key distinct from LITELLM_MASTER_KEY — the master
-# key is what GitHub Actions/the orchestrator actually use. Keep it out
-# of chat and out of any file in this repo regardless; treat it as
-# sensitive as a normal API key even though it isn't DB-scoped.
+# DATABASE_URL points at a free-tier Supabase Postgres instance (not a
+# self-hosted container) — avoids Cloud SQL's recurring cost while still
+# satisfying the hard DB requirement. Use Supabase's *direct* connection
+# (port 5432), not the transaction-mode connection pooler (port 6543):
+# the pooler doesn't support the multi-statement/advisory-lock behavior
+# LiteLLM's startup `prisma migrate deploy` needs, and hangs/times out
+# against it even with `?pgbouncer=true` set.
 #
-# Budget alert: handled outside LiteLLM entirely — via GCP's native
-# Billing → Budgets & alerts on the underlying Gemini/Vertex spend,
-# since that's free and already covers the actual roadmap goal (a real
-# alert before costs get away from you) without needing Postgres.
-#
-# Add Postgres back later (litellm/docker-compose.yml has the service
-# definition in git history) once there's a real need for per-project
-# dynamic keys or spend-by-repo breakdown — see docs/multi-pipeline-agent-strategy.md §3.
+# Budget alert: still handled outside LiteLLM — via GCP's native
+# Billing → Budgets & alerts on the underlying Gemini/Vertex spend —
+# since LiteLLM's own DB-backed alerting isn't needed just because a DB
+# exists now; GCP's is free and already covers the actual goal.
