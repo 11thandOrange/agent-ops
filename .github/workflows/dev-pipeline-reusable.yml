@@ -1,0 +1,106 @@
+name: dev-pipeline-reusable
+
+# The dev ticket pipeline's actual CI logic lives here, once, centrally
+# (strategy doc §4.5) — app repos keep only a thin caller workflow
+# (see templates/dev-pipeline-caller.yml) that passes their registry values.
+
+on:
+  workflow_call:
+    inputs:
+      project_language:
+        required: true
+        type: string
+      test_command:
+        required: true
+        type: string
+      coverage_type:
+        required: true
+        type: string
+      desired_coverage:
+        required: true
+        type: number
+      skill_folder:
+        required: true
+        type: string
+      reviewer:
+        required: true
+        type: string
+      action:
+        required: true
+        type: string # "plan" | "implement"
+    secrets:
+      LITELLM_PROXY_URL:
+        required: true
+      LITELLM_VIRTUAL_KEY:
+        required: true
+      GH_APP_ID:
+        required: true
+      GH_APP_PRIVATE_KEY:
+        required: true
+
+jobs:
+  plan:
+    if: inputs.action == 'plan'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+      - uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.LITELLM_PROXY_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.LITELLM_VIRTUAL_KEY }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        with:
+          prompt: |
+            Read this issue and ${{ inputs.skill_folder }}/SKILL.md, plus
+            skills/shared/approach-doc-format/SKILL.md. Produce an approach doc.
+
+            Before creating sub-issues, list this parent's existing sub-issues
+            and skip any whose title already matches the plan — this run must
+            be safely re-runnable without creating duplicates.
+
+            Create one GitHub sub-issue per subtask via the sub-issues API,
+            with the subtask's content as that sub-issue's body.
+            Then label this issue "approach-ready".
+          claude_args: "--max-turns 12 --model planning"
+
+  implement:
+    if: inputs.action == 'implement'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+      - uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.LITELLM_PROXY_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.LITELLM_VIRTUAL_KEY }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        with:
+          prompt: |
+            Read ${{ inputs.skill_folder }}/SKILL.md and
+            skills/shared/approval-gate-protocol/SKILL.md.
+            Implement the approved approach for this issue and its sub-issues.
+            Write unit tests for the core logic as part of the implementation.
+            Open a PR and request review from ${{ inputs.reviewer }}.
+          claude_args: "--max-turns 30 --model implementation"
+
+      - name: Qodo coverage gate
+        uses: qodo-ai/qodo-ci/.github/actions/qodo-cover@v0.1.12
+        with:
+          github_token: ${{ steps.app-token.outputs.token }}
+          branch: ${{ github.head_ref }}
+          project_language: ${{ inputs.project_language }}
+          project_root: .
+          code_coverage_report_path: ./coverage/cobertura-coverage.xml
+          coverage_type: ${{ inputs.coverage_type }}
+          test_command: ${{ inputs.test_command }}
+          desired_coverage: ${{ inputs.desired_coverage }}
+          max_iterations: 3
