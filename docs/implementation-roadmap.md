@@ -176,6 +176,7 @@ For each new personal project (property sourcing, asset purchases, etc.):
 - [ ] Back up `agent-ops` (skills, registry, orchestrator code) somewhere beyond GitHub's own availability — this repo is now infrastructure, not just code.
 - [ ] Revisit the self-hosted Qodo fallback decision (strategy doc §4.4) once more real-world PRs have gone through the gate, in case behavior changes with scale.
 - [ ] Revisit the single-reviewer setup if PR volume across multiple repos makes it a bottleneck (strategy doc §8) — a registry edit, not a rebuild.
+- [ ] **(New) Rotate every credential that was ever pasted into a chat session during setup**, once the pipeline is stable — specifically the GitHub App webhook secret and the `agent-ops-deployer` GCP service account key (both ended up in a chat transcript while getting Cloud Run deployment working in Phase 1/2). Generate a fresh value in the source system (GitHub App settings for the webhook secret; IAM & Admin → Service Accounts → Keys for the SA key), update the corresponding GitHub Secret to match, and delete/revoke the old one so the exposed value stops working entirely, not just goes unused. Treat this as the general rule going forward too: anything that touches a chat transcript during setup gets rotated before being trusted long-term, not left in place because it happens to still work.
 
 ---
 

@@ -441,6 +441,7 @@ This turns what were Phase 8/9 manual steps ("write a new project skill folder,"
 - **(Revised) GitHub access:** a **GitHub App** (not a PAT) with Issues/PRs/Contents permissions, installed on `agent-ops` and `BusyBuddy_v2`, and on each new app repo as it's added (§7). The App's ID and private key go straight into GitHub Secrets / your secrets manager, not into chat or any file in this repo.
 - **(Revised) Notifications:** chat only, permanently — Bird is not part of this system (§5.2).
 - **(Revised) Orchestrator endpoint auth:** `/trigger`, `/webhook/mcp`, and `/webhook/github` all require a shared-secret or token check from the moment they're stood up in Phase 2 — not left open until a later hardening phase.
+- **(New) Chat-exposed credentials get rotated, not just noted.** During Phase 1/2 setup, the GitHub App webhook secret and the GCP service account key both ended up pasted into a chat session (needed at the time to get deployment working). Decision: any credential that touches a chat transcript during setup is treated as compromised by default and rotated once the pipeline is stable, regardless of whether anything has actually gone wrong — see the Phase 10 checklist item.
 
 ## 9. Open items to validate before relying on this in production
 
