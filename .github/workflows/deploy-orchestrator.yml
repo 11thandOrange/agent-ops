@@ -1,0 +1,67 @@
+name: deploy-orchestrator
+
+# Deploys orchestrator/ to Cloud Run using only GitHub Secrets — no
+# credential ever needs to be pasted into chat or stored in this repo.
+# Trigger manually (Actions tab -> deploy-orchestrator -> Run workflow)
+# or automatically on a push to main that touches orchestrator/.
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - "orchestrator/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build env vars file
+        env:
+          ORCHESTRATOR_SHARED_SECRET: ${{ secrets.ORCHESTRATOR_SHARED_SECRET }}
+          GH_APP_ID: ${{ secrets.GH_APP_ID }}
+          GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          GH_APP_INSTALLATION_ID: ${{ secrets.GH_APP_INSTALLATION_ID }}
+          GH_WEBHOOK_SECRET: ${{ secrets.GH_WEBHOOK_SECRET }}
+          LITELLM_PROXY_URL: ${{ secrets.LITELLM_PROXY_URL }}
+          LITELLM_VIRTUAL_KEY: ${{ secrets.LITELLM_VIRTUAL_KEY }}
+        run: |
+          python3 - <<'PYEOF'
+          import os
+          import yaml
+
+          data = {
+              "ORCHESTRATOR_SHARED_SECRET": os.environ["ORCHESTRATOR_SHARED_SECRET"],
+              "GH_APP_ID": os.environ["GH_APP_ID"],
+              "GH_APP_PRIVATE_KEY": os.environ["GH_APP_PRIVATE_KEY"],
+              "GH_APP_INSTALLATION_ID": os.environ["GH_APP_INSTALLATION_ID"],
+              "GH_WEBHOOK_SECRET": os.environ["GH_WEBHOOK_SECRET"],
+              "ALLOWED_MENTION_AUTHORS": "heyitschloe",
+              "LITELLM_PROXY_URL": os.environ["LITELLM_PROXY_URL"],
+              "LITELLM_VIRTUAL_KEY": os.environ["LITELLM_VIRTUAL_KEY"],
+              "CONTROL_REPO_OWNER": "HeyItsChloe",
+              "CONTROL_REPO_NAME": "agent-ops",
+              "CONTROL_REPO_BRANCH": "main",
+          }
+          with open("/tmp/env.yaml", "w") as f:
+              yaml.safe_dump(data, f)
+          PYEOF
+
+      - name: Deploy orchestrator to Cloud Run
+        run: |
+          gcloud run deploy orchestrator \
+            --source orchestrator/ \
+            --project agent-ops-501120 \
+            --region us-central1 \
+            --allow-unauthenticated \
+            --env-vars-file=/tmp/env.yaml
