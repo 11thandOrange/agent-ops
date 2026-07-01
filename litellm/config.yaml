@@ -42,10 +42,23 @@ router_settings:
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
-  database_url: os.environ/DATABASE_URL
 
-# Budget alert: set at the same time this proxy first goes live (roadmap
-# Phase 1, step 6), not deferred to a hardening pass. Configure via the
-# LiteLLM admin UI or `/budget/settings` once the proxy is running — this
-# file only defines routing, spend tracking itself needs the Postgres DB
-# above plus a webhook/email target set through that API.
+# No database_url on purpose (decision, not an oversight): Postgres only
+# backs LiteLLM's *optional* layer — dynamically-issued virtual keys,
+# per-key spend tracking, and the Admin UI usage dashboard. The core
+# proxy (model-alias routing above) doesn't need a database at all.
+#
+# Trade-off accepted for now: without a DB, there's no separate
+# "scoped, revocable" key distinct from LITELLM_MASTER_KEY — the master
+# key is what GitHub Actions/the orchestrator actually use. Keep it out
+# of chat and out of any file in this repo regardless; treat it as
+# sensitive as a normal API key even though it isn't DB-scoped.
+#
+# Budget alert: handled outside LiteLLM entirely — via GCP's native
+# Billing → Budgets & alerts on the underlying Gemini/Vertex spend,
+# since that's free and already covers the actual roadmap goal (a real
+# alert before costs get away from you) without needing Postgres.
+#
+# Add Postgres back later (litellm/docker-compose.yml has the service
+# definition in git history) once there's a real need for per-project
+# dynamic keys or spend-by-repo breakdown — see docs/multi-pipeline-agent-strategy.md §3.

@@ -11,7 +11,7 @@ Each phase ends with a checkpoint: don't move to the next phase until the checkp
 ## Phase 0 — Accounts, access, and decisions to lock in first
 
 - [x] Anthropic API account — pending. Gemini is the configured model for now; Claude aliases will be repointed when the key lands.
-- [x] Hosting: Oracle Cloud Free Tier instance is provisioned.
+- [x] **(Re-revised) Hosting:** moved from the originally-provisioned Oracle Cloud Free Tier instance to **Google Cloud Run** — the manual VM/VNIC/public-IP/Caddy setup on Oracle Cloud had real friction; Cloud Run gives an HTTPS endpoint automatically from a container push. Requires a GCP project + billing account + a scoped service account key (Cloud Run Admin, Service Account User, Cloud Build Editor, Artifact Registry Writer).
 - [ ] Create the control repo: `agent-ops` — exists (`HeyItsChloe/agent-ops`), currently empty.
 - [x] Pilot app repo: `11thandOrange/BusyBuddy_v2`. Pilot personal project: resume builder + job applier (LinkedIn, PDF output, draft-and-queue — no auto-submit).
 - [ ] Qodo account — not needed; using self-hosted `PR-Agent` + `qodo-cover` instead (BYOK against the Gemini/Claude gateway).
@@ -19,30 +19,34 @@ Each phase ends with a checkpoint: don't move to the next phase until the checkp
 - [ ] **(Revised) GitHub App, not a PAT** — still outstanding. Create a GitHub App (Settings → Developer settings → GitHub Apps → New GitHub App) with Issues/PRs/Contents permissions, generate its private key, and install it on `agent-ops` and `BusyBuddy_v2`. Store the App ID and private key directly as GitHub Secrets / in your secrets manager — not in chat or in any file in this repo. This replaces the original fine-grained-PAT plan: a PAT would need re-scoping every time a new app repo is added (Phase 8); an App is installed per-repo without re-minting anything.
 - [ ] **Retire the OpenHands pipeline on BusyBuddy_v2** before standing up the new workflow: disable/remove the OpenHands automation registration (ID `3cfefdb0-a1bc-4f26-bcc6-4136ff0fb4da`), stop using the `ready-to-implement` label trigger, and turn off the callmebot WhatsApp notifier step so the two pipelines don't fire on the same issue.
 
-**Checkpoint:** you can SSH into the Oracle Cloud instance that will run LiteLLM + the orchestrator, you have a working Gemini API key, the GitHub App is created and installed on both repos, and BusyBuddy_v2's old automation is disabled (not necessarily deleted yet — just not triggering).
+**Checkpoint:** you have a GCP project with billing linked and a scoped service account key, a working Gemini API key, the GitHub App is created and installed on both repos, and BusyBuddy_v2's old automation is disabled (not necessarily deleted yet — just not triggering).
 
 ---
 
 ## Phase 1 — Stand up the model gateway
 
-1. On the orchestrator host, install LiteLLM and Postgres (for spend tracking/virtual keys):
+1. **(Re-revised)** deploy `litellm/` (config.yaml + docker-compose.yml, no Postgres — see the decision in `docs/multi-pipeline-agent-strategy.md` §3) to **Cloud Run** rather than installing LiteLLM directly on a VM:
    ```bash
-   pip install 'litellm[proxy]' --break-system-packages
+   gcloud run deploy litellm-gateway \
+     --source litellm/ \
+     --set-env-vars GEMINI_API_KEY=...,LITELLM_MASTER_KEY=... \
+     --region <your-region> \
+     --allow-unauthenticated
    ```
-2. Write `litellm/config.yaml` with the `planning` and `implementation` aliases pointed at a Gemini model for now (e.g. `gemini/gemini-2.5-flash` or `gemini/gemini-2.5-pro` depending on which you want for cost vs. quality). Leave a commented-out Anthropic block ready to uncomment once that key arrives — the point of the alias pattern is that nothing downstream needs to change when you do.
-3. Start the proxy and confirm it responds:
+   (`--allow-unauthenticated` is fine here since `general_settings.master_key` is still the auth gate at the application layer — Cloud Run's own IAM auth is a separate, optional additional layer you can add later.)
+2. `litellm/config.yaml` already has the `planning` and `implementation` aliases pointed at Gemini, with a commented-out Anthropic block ready to uncomment once that key arrives — the point of the alias pattern is that nothing downstream needs to change when you do.
+3. Confirm the deployed service responds:
    ```bash
-   litellm --config litellm/config.yaml --port 4000
-   curl http://localhost:4000/v1/chat/completions \
+   curl https://<cloud-run-url>/v1/chat/completions \
      -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
      -H "Content-Type: application/json" \
      -d '{"model": "implementation", "messages": [{"role": "user", "content": "say hi"}]}'
    ```
-4. Issue a virtual key scoped to the dev pipeline (`/key/generate` endpoint) rather than handing out the master key to GitHub Actions.
-5. Put the proxy behind HTTPS (Caddy or nginx + Let's Encrypt is the fastest path) since GitHub Actions and any chat client will call it over the network.
-6. **(Revised, moved up from Phase 10)** set a monthly budget alert on this gateway's spend now, before any pipeline traffic runs against it — not after Phase 9. Automated pipelines can outrun interactive-chat-level spend fast, and every later phase generates real billed calls.
+4. **(Re-revised)** no separate virtual key to issue — without Postgres, `LITELLM_MASTER_KEY` is what GitHub Actions/the orchestrator use directly (§3's accepted trade-off). Treat it with the same care a scoped key would get regardless.
+5. **(Re-revised)** HTTPS is automatic on Cloud Run — no Caddy/Let's Encrypt/VNIC setup needed, unlike the original Oracle Cloud plan.
+6. **(Re-revised, moved up from Phase 10)** set the budget alert now, before any pipeline traffic runs against it — but via **GCP Billing → Budgets & alerts** on the project, not LiteLLM's own DB-backed alerting (which needs the Postgres this doc just dropped). Automated pipelines can outrun interactive-chat-level spend fast, and every later phase generates real billed calls.
 
-**Checkpoint:** a curl request through the public HTTPS URL, using the scoped virtual key, returns a real Claude completion. Swapping the `implementation` alias's target model in the config and restarting changes the response without touching any other file. A budget alert is live and will actually notify you.
+**Checkpoint:** a curl request through the Cloud Run HTTPS URL, using the master key, returns a real completion. Swapping the `implementation` alias's target model in the config and redeploying changes the response without touching any other file. A GCP budget alert is live and will actually notify you.
 
 ---
 
