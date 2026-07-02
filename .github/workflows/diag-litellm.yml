@@ -1,0 +1,45 @@
+name: diag-litellm
+# Temporary diagnostic workflow for investigating the claude-code-action
+# failure on 11thandOrange/BusyBuddy_v2 run 28561093550. Not part of the
+# pipeline architecture — delete once the root cause is confirmed.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: OpenAI-compatible endpoint, model=implementation (known working baseline)
+        run: |
+          echo "--- /v1/chat/completions, model=implementation ---"
+          curl -sS -w "\nHTTP_STATUS:%{http_code}\n" "${{ secrets.LITELLM_PROXY_URL }}/v1/chat/completions" \
+            -H "Authorization: Bearer ${{ secrets.LITELLM_VIRTUAL_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"model":"implementation","messages":[{"role":"user","content":"say hi"}]}'
+
+      - name: OpenAI-compatible endpoint, model=planning
+        run: |
+          echo "--- /v1/chat/completions, model=planning ---"
+          curl -sS -w "\nHTTP_STATUS:%{http_code}\n" "${{ secrets.LITELLM_PROXY_URL }}/v1/chat/completions" \
+            -H "Authorization: Bearer ${{ secrets.LITELLM_VIRTUAL_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"model":"planning","messages":[{"role":"user","content":"say hi"}]}'
+
+      - name: Anthropic-compatible endpoint, model=planning, x-api-key auth
+        run: |
+          echo "--- /v1/messages, model=planning, x-api-key ---"
+          curl -sS -w "\nHTTP_STATUS:%{http_code}\n" "${{ secrets.LITELLM_PROXY_URL }}/v1/messages" \
+            -H "x-api-key: ${{ secrets.LITELLM_VIRTUAL_KEY }}" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "Content-Type: application/json" \
+            -d '{"model":"planning","max_tokens":50,"messages":[{"role":"user","content":"say hi"}]}'
+
+      - name: Anthropic-compatible endpoint, model=planning, Bearer auth
+        run: |
+          echo "--- /v1/messages, model=planning, Authorization Bearer ---"
+          curl -sS -w "\nHTTP_STATUS:%{http_code}\n" "${{ secrets.LITELLM_PROXY_URL }}/v1/messages" \
+            -H "Authorization: Bearer ${{ secrets.LITELLM_VIRTUAL_KEY }}" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "Content-Type: application/json" \
+            -d '{"model":"planning","max_tokens":50,"messages":[{"role":"user","content":"say hi"}]}'
