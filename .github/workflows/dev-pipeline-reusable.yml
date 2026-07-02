@@ -102,8 +102,19 @@ jobs:
             and skip any whose title already matches the plan — this run must
             be safely re-runnable without creating duplicates.
 
-            Create one GitHub sub-issue per subtask via the sub-issues API,
-            with the subtask's content as that sub-issue's body.
+            Create each sub-issue with exactly one command:
+              gh issue create --parent <parent_number> --title '<title>' --body '<body>'
+            This creates and links the sub-issue atomically in a single call —
+            confirmed working reliably across multiple runs. Do NOT create a
+            plain issue and then separately call `gh api .../sub_issues` (REST)
+            or a GraphQL addSubIssue mutation to link it afterward — that
+            two-step path reliably 403s ("Resource not accessible by
+            integration") regardless of retries, and burns turns re-trying a
+            call that will not succeed. If you ever end up with an issue that
+            was created without --parent (e.g. by mistake), close it and
+            recreate it correctly with --parent rather than trying to link the
+            orphan retroactively.
+
             Then label this issue "approach-ready".
           # --permission-mode dontAsk + explicit --allowedTools: without this,
           # the agent stops and asks for interactive approval on its first
@@ -115,7 +126,7 @@ jobs:
           # JSON below (a second, independent mechanism for the same thing)
           # is the fallback to check, not this flag itself.
           claude_args: |
-            --max-turns 12
+            --max-turns 16
             --model planning
             --permission-mode dontAsk
             --allowedTools "Read" "Bash(gh issue *)" "Bash(gh api *)" "Bash(gh sub-issue *)"
@@ -181,6 +192,12 @@ jobs:
             Implement the approved approach for this issue and its sub-issues.
             Write unit tests for the core logic as part of the implementation.
             Open a PR and request review from ${{ inputs.reviewer }}.
+
+            If you need to create any additional sub-issue during
+            implementation, use exactly `gh issue create --parent <parent_number>
+            --title '<title>' --body '<body>'` in one call — never create a
+            plain issue and separately try to link it via `gh api .../sub_issues`
+            or a GraphQL addSubIssue mutation, which 403s regardless of retries.
           # Same permission-mode fix as the plan job — but broader here: implement
           # has to run whatever build/test/lint commands the target project uses
           # (varies per repo, not enumerable in advance the way plan's gh
