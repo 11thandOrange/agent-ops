@@ -42,6 +42,15 @@ jobs:
   plan:
     if: inputs.action == 'plan'
     runs-on: ubuntu-latest
+    # id-token: write is required by anthropics/claude-code-action@v1 (OIDC token
+    # request) — see docs/multi-pipeline-agent-strategy.md decision log. Reusable
+    # workflow permissions are the *intersection* of what this job grants and what
+    # the caller job grants, so the caller (e.g. BusyBuddy_v2's dev-pipeline.yml)
+    # needs a matching permissions block too, or this alone won't be enough.
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/create-github-app-token@v1
@@ -71,6 +80,11 @@ jobs:
   implement:
     if: inputs.action == 'implement'
     runs-on: ubuntu-latest
+    # Same id-token requirement as the plan job above.
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/create-github-app-token@v1

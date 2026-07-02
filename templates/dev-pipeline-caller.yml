@@ -24,6 +24,14 @@ on:
 
 jobs:
   dispatch:
+    # Reusable-workflow permissions are the intersection of what this caller job
+    # grants and what dev-pipeline-reusable.yml's own jobs request — id-token: write
+    # must be granted here too, or the callee's own id-token: write (needed by
+    # anthropics/claude-code-action@v1's OIDC request) has no effect.
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
     uses: HeyItsChloe/agent-ops/.github/workflows/dev-pipeline-reusable.yml@main
     with:
       project_language: typescript

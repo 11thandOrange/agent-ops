@@ -126,6 +126,13 @@ on:
 
 jobs:
   dispatch:
+    # id-token: write must be granted here too — reusable workflow permissions
+    # are the intersection of caller + callee, and dev-pipeline-reusable.yml's
+    # jobs request id-token: write for anthropics/claude-code-action@v1's OIDC.
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
     uses: ${controlRepoOwner}/${controlRepoName}/.github/workflows/dev-pipeline-reusable.yml@main
     with:
       project_language: CHANGE_ME
