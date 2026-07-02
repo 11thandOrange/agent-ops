@@ -11,62 +11,53 @@ Each phase ends with a checkpoint: don't move to the next phase until the checkp
 ## Phase 0 — Accounts, access, and decisions to lock in first
 
 - [x] Anthropic API account — pending. Gemini is the configured model for now; Claude aliases will be repointed when the key lands.
-- [x] **(Re-revised) Hosting:** moved from the originally-provisioned Oracle Cloud Free Tier instance to **Google Cloud Run** — the manual VM/VNIC/public-IP/Caddy setup on Oracle Cloud had real friction; Cloud Run gives an HTTPS endpoint automatically from a container push. Requires a GCP project + billing account + a scoped service account key (Cloud Run Admin, Service Account User, Cloud Build Editor, Artifact Registry Writer).
-- [ ] Create the control repo: `agent-ops` — exists (`HeyItsChloe/agent-ops`), currently empty.
+- [x] **(Re-revised) Hosting — live:** moved from the originally-provisioned Oracle Cloud Free Tier instance to **Google Cloud Run** (project `agent-ops-501120`, region `us-central1`) — the manual VM/VNIC/public-IP/Caddy setup on Oracle Cloud had real friction; Cloud Run gives an HTTPS endpoint automatically from a container push. GCP project created, billing linked, scoped service account (`agent-ops-deployer`) created with Cloud Run Admin, Service Account User, Cloud Build Editor, Artifact Registry Administrator, Storage Admin, Logs Viewer.
+- [x] Create the control repo: `agent-ops` (`HeyItsChloe/agent-ops`) — no longer empty; holds the orchestrator, litellm config, skills, and both deploy workflows.
 - [x] Pilot app repo: `11thandOrange/BusyBuddy_v2`. Pilot personal project: resume builder + job applier (LinkedIn, PDF output, draft-and-queue — no auto-submit).
 - [ ] Qodo account — not needed; using self-hosted `PR-Agent` + `qodo-cover` instead (BYOK against the Gemini/Claude gateway).
 - [x] Chat front end for the pilot: **claude.ai** — connect the MCP server as a Claude connector rather than via ChatGPT Developer Mode.
-- [ ] **(Revised) GitHub App, not a PAT** — still outstanding. Create a GitHub App (Settings → Developer settings → GitHub Apps → New GitHub App) with Issues/PRs/Contents permissions, generate its private key, and install it on `agent-ops` and `BusyBuddy_v2`. Store the App ID and private key directly as GitHub Secrets / in your secrets manager — not in chat or in any file in this repo. This replaces the original fine-grained-PAT plan: a PAT would need re-scoping every time a new app repo is added (Phase 8); an App is installed per-repo without re-minting anything.
-- [ ] **Retire the OpenHands pipeline on BusyBuddy_v2** before standing up the new workflow: disable/remove the OpenHands automation registration (ID `3cfefdb0-a1bc-4f26-bcc6-4136ff0fb4da`), stop using the `ready-to-implement` label trigger, and turn off the callmebot WhatsApp notifier step so the two pipelines don't fire on the same issue.
+- [x] **(Revised) GitHub App, not a PAT — done.** Custom GitHub App `pipeline-orchestrator-opps` created with Issues/PRs/Contents permissions, installed as two separate installations: one on the `heyitschloe` personal account, one on the `11thandOrange` organization (covering `BusyBuddy_v2`). App ID, private key, and both installation IDs live in GitHub Secrets, never in chat or in this repo.
+- [ ] **Retire the OpenHands pipeline on BusyBuddy_v2** — still outstanding, blocked on this session's repo scope (can't touch `BusyBuddy_v2` directly from here regardless of the App being installed there now). Do this in a new session scoped to that repo — disable/remove the OpenHands automation registration (ID `3cfefdb0-a1bc-4f26-bcc6-4136ff0fb4da`), stop using the `ready-to-implement` label trigger, and turn off the callmebot WhatsApp notifier step so the two pipelines don't fire on the same issue.
 
-**Checkpoint:** you have a GCP project with billing linked and a scoped service account key, a working Gemini API key, the GitHub App is created and installed on both repos, and BusyBuddy_v2's old automation is disabled (not necessarily deleted yet — just not triggering).
-
----
-
-## Phase 1 — Stand up the model gateway
-
-1. **(Re-revised)** deploy `litellm/` (config.yaml + docker-compose.yml, no Postgres — see the decision in `docs/multi-pipeline-agent-strategy.md` §3) to **Cloud Run** rather than installing LiteLLM directly on a VM:
-   ```bash
-   gcloud run deploy litellm-gateway \
-     --source litellm/ \
-     --set-env-vars GEMINI_API_KEY=...,LITELLM_MASTER_KEY=... \
-     --region <your-region> \
-     --allow-unauthenticated
-   ```
-   (`--allow-unauthenticated` is fine here since `general_settings.master_key` is still the auth gate at the application layer — Cloud Run's own IAM auth is a separate, optional additional layer you can add later.)
-2. `litellm/config.yaml` already has the `planning` and `implementation` aliases pointed at Gemini, with a commented-out Anthropic block ready to uncomment once that key arrives — the point of the alias pattern is that nothing downstream needs to change when you do.
-3. Confirm the deployed service responds:
-   ```bash
-   curl https://<cloud-run-url>/v1/chat/completions \
-     -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-     -H "Content-Type: application/json" \
-     -d '{"model": "implementation", "messages": [{"role": "user", "content": "say hi"}]}'
-   ```
-4. **(Re-revised)** no separate virtual key to issue — without Postgres, `LITELLM_MASTER_KEY` is what GitHub Actions/the orchestrator use directly (§3's accepted trade-off). Treat it with the same care a scoped key would get regardless.
-5. **(Re-revised)** HTTPS is automatic on Cloud Run — no Caddy/Let's Encrypt/VNIC setup needed, unlike the original Oracle Cloud plan.
-6. **(Re-revised, moved up from Phase 10)** set the budget alert now, before any pipeline traffic runs against it — but via **GCP Billing → Budgets & alerts** on the project, not LiteLLM's own DB-backed alerting (which needs the Postgres this doc just dropped). Automated pipelines can outrun interactive-chat-level spend fast, and every later phase generates real billed calls.
-
-**Checkpoint:** a curl request through the Cloud Run HTTPS URL, using the master key, returns a real completion. Swapping the `implementation` alias's target model in the config and redeploying changes the response without touching any other file. A GCP budget alert is live and will actually notify you.
+**Checkpoint — met, except OpenHands retirement:** GCP project with billing linked and a scoped service account exists, Gemini API key confirmed working (real completions returned), the GitHub App is created and installed on both accounts. BusyBuddy_v2's old automation is not yet disabled — carries into Phase 3.
 
 ---
 
-## Phase 2 — Scaffold the control repo
+## Phase 1 — Stand up the model gateway — ✅ COMPLETE
 
-1. Create the `agent-ops` folder structure from the strategy doc §6 (`orchestrator/`, `skills/`, `litellm/`, `.github/workflows/`).
-2. Write the orchestrator's skeleton: a small HTTP service (Node/Express or Python/FastAPI — pick whichever you're fastest in) with three routes stubbed out:
+Live at `https://litellm-gateway-836703226343.us-central1.run.app`.
+
+1. Deployed `litellm/` (config.yaml + Dockerfile) to **Cloud Run**, project `agent-ops-501120`, region `us-central1` — first deploy was done manually via `gcloud run deploy --source litellm/` from a chat session (before the GitHub-Secrets-driven deploy pattern used for the orchestrator existed).
+2. `litellm/config.yaml` has the `planning` and `implementation` aliases pointed at Gemini, with a commented-out Anthropic block ready to uncomment once that key arrives.
+3. **(Re-revised twice)** an initial attempt to run without Postgres failed: this LiteLLM build hard-requires a DB connection for key auth, throwing a misleading `"No connected db"` error even with a correct master key (confirmed against `BerriAI/litellm` #2532, #4880, #12273). Added Postgres back via a **free-tier Supabase instance**, using its **direct connection** (port `5432`) — the transaction pooler (port `6543`) hangs on LiteLLM's startup `prisma migrate deploy`, which needs session-level behavior the pooler doesn't support.
+4. Confirmed the deployed service responds with a real completion (`curl .../v1/chat/completions` with the master key) — took a few debugging rounds (the DB timeout, then a corrupted copy-paste of the master key producing a `401`) before landing on a genuine `200` with real model output.
+5. No separate virtual key issued — `LITELLM_MASTER_KEY` is what GitHub Actions/the orchestrator use directly (§3's accepted trade-off, still true even with Postgres back, since dynamic key issuance was never wired up).
+6. HTTPS is automatic on Cloud Run — no Caddy/Let's Encrypt/VNIC setup needed.
+7. Budget alert live: GCP Billing → Budgets & alerts, budget named "Agent-Ops", scoped to `agent-ops-501120`.
+
+**Checkpoint — met:** a curl request through the Cloud Run HTTPS URL, using the master key, returns a real completion. A GCP budget alert is live.
+
+---
+
+## Phase 2 — Scaffold the control repo — ✅ COMPLETE
+
+Orchestrator live at `https://orchestrator-836703226343.us-central1.run.app`, MCP mounted at `/mcp`.
+
+1. `agent-ops` folder structure in place (`orchestrator/`, `skills/`, `litellm/`, `.github/workflows/`).
+2. Orchestrator built in Node/TypeScript/Express with three routes:
    - `POST /trigger` — generic entry point for chat/curl/Postman
    - `POST /webhook/github` — receives GitHub webhook events
    - `POST /webhook/mcp` — backing endpoint for the MCP server (Phase 6)
-3. **(Revised, moved up from Phase 10)** add real authentication to all three routes now — a shared-secret header check is enough at this scale — before wiring any real trigger to them in Phase 3. Don't leave them open "because they're internal for now."
-4. **(Revised, moved up from Phase 10)** wire basic structured logging with a correlation/job ID generated per request, even if jobs are still stubbed. This makes every later phase's debugging much cheaper and is far more annoying to retrofit after Phase 5–8 are running concurrently.
-5. Write `registry/projects.yaml` with one entry for the pilot app repo, using the extended schema from strategy doc §6 (`model_profile`, `skill_folder`, `test_gate`, `project_language`, `test_command`, `coverage_type`, `desired_coverage`, `reviewer`).
-6. Write the shared skills first:
-   - `approach-doc-format` and `approval-gate-protocol` — every project skill will reference these.
-   - **(Revised)** `project-scaffold` — the skill that generates new project skill files and registry entries (strategy doc §6.1), replacing the earlier idea of a static template file nobody would reliably copy correctly.
-7. Write the pilot app's project skill (`skills/app-1/SKILL.md`): coding conventions, test framework, PR template, anything Claude Code needs to act like it knows this repo. Write this one by hand as the reference example — the `project-scaffold` skill is what generates the *next* one (app-2 onward, Phase 8).
-8. **(Revised)** write the reusable workflow, `agent-ops/.github/workflows/dev-pipeline-reusable.yml` (strategy doc §4.5), here rather than as a per-repo file — this is the one place the pipeline's CI logic lives.
+3. Real authentication verified working post-deploy: unauthenticated `POST /trigger` returns `401`; with the correct shared secret, requests pass through to Zod body validation (`400` on missing fields, not `401`) — confirmed auth is genuinely gating, not a no-op.
+4. Structured logging with a correlation ID per request is wired (`src/logging.ts`).
+5. `registry/projects.yaml` has the `app-1` entry using the extended schema (`model_profile`, `skill_folder`, `test_gate`, `project_language`, `test_command`, `coverage_type`, `desired_coverage`, `reviewer`).
+6. Shared skills written: `approach-doc-format`, `approval-gate-protocol`, and `project-scaffold` (the onboarding-as-a-skill capability, §6.1).
+7. `skills/app-1/SKILL.md` written by hand as the reference example for BusyBuddy_v2.
+8. `agent-ops/.github/workflows/dev-pipeline-reusable.yml` written — the one place the dev pipeline's CI logic lives.
+9. **(New)** deployed via a dedicated GitHub Actions workflow (`.github/workflows/deploy-orchestrator.yml`), driven entirely by GitHub Secrets rather than running `gcloud` from chat — the credential-in-chat problem from Phase 1's LiteLLM deploy prompted building this pattern before deploying the orchestrator.
+10. **Still open:** the GitHub App's Webhook URL hasn't been pointed at `https://orchestrator-836703226343.us-central1.run.app/webhook/github` yet, so `/webhook/github`'s real HMAC signature verification hasn't been exercised against a live GitHub event yet (the shared-secret-based endpoints are confirmed; this one needs an actual webhook delivery to prove out).
 
-**Checkpoint:** `agent-ops` is a real repo with a running (even if mostly stubbed) orchestrator service, reachable over HTTPS, authenticated, logging with correlation IDs, one project skill written, the scaffold skill written, and the reusable workflow file in place.
+**Checkpoint — met:** `agent-ops` has a running orchestrator, reachable over HTTPS, genuinely authenticated (verified via curl, not assumed), logging with correlation IDs, all skills written, and the reusable workflow file in place.
 
 ---
 
