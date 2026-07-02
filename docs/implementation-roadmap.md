@@ -61,40 +61,33 @@ Orchestrator live at `https://orchestrator-836703226343.us-central1.run.app`, MC
 
 ---
 
-## Phase 3 — Dev pipeline: planning stage only
+## Phase 3 — Dev pipeline: planning stage only — ✅ COMPLETE
 
-Build and test the planning half before touching implementation — it's lower-risk (no code changes) and proves the trigger plumbing.
+Validated live against `11thandOrange/BusyBuddy_v2`. Getting here took several rounds of real-run debugging, not a clean first pass — each of these was found from an actual Actions log, not anticipated in advance:
 
-**Before step 1, on BusyBuddy_v2 specifically:** confirm the OpenHands automation is fully disabled (not just untriggered) — remove or rename the `ready-to-implement` label so old habits don't accidentally fire it, and either delete or clearly mark `.agents`-sourced workflow files as legacy so there's no ambiguity about which system owns issue automation on this repo going forward.
+- Missing `id-token: write` permission blocked `anthropics/claude-code-action@v1`'s OIDC request — added explicit `permissions:` blocks to both reusable-workflow jobs (the caller workflow needs a matching block too, since reusable-workflow permissions are the *intersection* of caller and callee).
+- `gemini-2.5-pro` had a `0` free-tier quota — `planning` alias repointed to `gemini-2.5-flash`, with `implementation-fallback` wired in for both aliases.
+- Skill files (`.agent-ops/...`) didn't exist in the runner's checkout — added a second cross-account GitHub App token + checkout of `agent-ops` itself into `.agent-ops/`.
+- The agent stopped and asked for interactive tool approval with no human to answer it on a CI runner — fixed with `--permission-mode dontAsk` plus explicit `--allowedTools`, verified locally against the raw CLI before trusting it in CI.
+- The prompt never named which issue to work on (the action doesn't auto-inject issue context) — interpolated the issue number into the prompt from both possible trigger shapes; this also surfaced that the orchestrator's own `dispatchRepositoryEvent` never sent the issue number in its `repository_dispatch` payload, fixed across `github.ts`/`plan_ticket.ts`/`implement_ticket.ts`.
+- Retroactive sub-issue linking (`gh api .../sub_issues` or a GraphQL `addSubIssue` mutation after creating a plain issue) reliably 403'd — the prompt and `approach-doc-format/SKILL.md` now mandate the atomic `gh issue create --parent` form exclusively.
 
-1. In the pilot app repo, add the thin caller workflow (`.github/workflows/dev-pipeline.yml`, strategy doc §4.5) that calls `agent-ops`'s reusable workflow with this repo's registry values.
-2. Add repo secrets: `LITELLM_PROXY_URL`, `LITELLM_VIRTUAL_KEY`, and **(Revised)** `GH_APP_ID` / `GH_APP_PRIVATE_KEY` (or rely on `secrets: inherit` from an org-level secret if the App credentials are set at the org level).
-3. Enable GitHub's sub-issues feature on the repo if not already on (Settings → Issues, or just start using `gh issue create --parent`).
-4. Create a test issue, label it `approach-ready` manually first (skip the orchestrator) to confirm the reusable workflow itself fires Claude Code correctly and creates real sub-issues with content in their descriptions.
-5. **(Revised)** re-run the same test issue's plan step a second time (simulate a retry) and confirm it does *not* create duplicate sub-issues — this is the idempotency checkpoint from strategy doc §4.2, tested here rather than assumed to work later.
-6. Once step 4 works, wire the orchestrator's `/webhook/github` to listen for the same event and confirm it can also fire the workflow via `repository_dispatch` — this proves the multi-trigger normalization. Confirm the correlation ID from Phase 2 shows up in both the orchestrator's log and is traceable through to the Action run.
-7. Test the second and third trigger paths: a curl request to `/trigger` (confirm it's rejected without the auth header, then succeeds with it), and an `@dev-agent plan` comment on the issue (confirm the commenter-allowlist check from strategy doc §4.1 passes for you and would reject an unlisted commenter).
+**Checkpoint — met:** real GitHub sub-issues get created with subtask content in their descriptions, the parent issue gets labeled `approach-ready`, and a retried plan run doesn't duplicate sub-issues.
 
-**Checkpoint:** all four trigger types (label, mention, curl, and — once Phase 6 lands — chat) produce the same result: real GitHub sub-issues with subtask content in their descriptions, and the parent issue labeled `approach-ready`. A retried plan run doesn't duplicate sub-issues. Unauthenticated requests to the orchestrator are rejected. An unlisted commenter's `@dev-agent` mention is ignored.
+**Still outstanding from this phase's original scope, not blocking:** the OpenHands retirement on BusyBuddy_v2 (Phase 0) hasn't happened yet; the curl/`@dev-agent` trigger paths and the commenter-allowlist check haven't been separately exercised live (only the label-triggered path has been proven end to end).
 
 ---
 
-## Phase 4 — Dev pipeline: implementation + quality gate
+## Phase 4 — Dev pipeline: implementation + quality gate — ✅ COMPLETE
 
-1. Add the `implement` job (already present in the reusable workflow from Phase 2 — this step is about testing it, not writing it).
-2. Manually label a test issue `approved` (after a `plan` run) and confirm Claude Code:
-   - implements a small, low-risk real change
-   - writes unit tests as part of the diff
-   - opens a PR
-   - tags the registry's configured reviewer (`heyitschloe`) — confirmed sourced from `registry/projects.yaml`, not a separately-set repo variable
-3. Confirm the self-hosted **PR-Agent** step and **qodo-cover** step (already in the reusable workflow) run against the LiteLLM gateway correctly for this repo's language (BusyBuddy_v2 is Node/Vitest — check both the backend and frontend suites, plus the cart-transformer extension's suite):
-   - it reads the test command/coverage report correctly
-   - it fails the gate (sends back rather than notifying you) on a deliberately under-tested change, to confirm the gate actually blocks
-   - **(Revised)** if either self-hosted tool clearly underperforms hosted Qodo on these first real tests, make the fallback call now (strategy doc §4.4) rather than carrying uncertainty into Phase 5.
-4. Decide whether to also fold in the existing Playwright smoke tests from the old OpenHands setup (`smoke-tester` agent) — BusyBuddy_v2 already has working Playwright smoke coverage that's worth keeping even though the agent that ran it is being retired.
-5. **(Revised)** confirm partial-failure behavior deliberately: force a failure after Claude Code opens a PR but before/during the Qodo step, and confirm the pipeline fails loudly (a clear failed-check state) rather than leaving the PR in an ambiguous state.
+Validated live on the same pilot repo. Two more rounds of real-run debugging on top of Phase 3's:
 
-**Checkpoint:** one real ticket goes from `approved` label to a PR with passing tests and a coverage gate, with the registry-configured reviewer tagged, with zero manual steps in between. A deliberately forced mid-pipeline failure surfaces clearly rather than silently.
+- The Qodo coverage-gate step's `--branch` input was empty, crashing with `fatal: empty string is not a valid pathspec`. First attempt (`github.head_ref`) was wrong because this job isn't `pull_request`-triggered. Second attempt (`claude-code-action`'s own `branch_name` output) reproduced the identical failure on retest, because that output is only populated when the action manages branch creation itself in its built-in "tag mode" — this workflow runs it in plain prompt mode, so Claude Code creates the branch itself via Bash and the action never sees it. Fixed by computing the branch name *before* Claude Code runs and having the prompt, the workflow step, and the Qodo input all reference that one precomputed value instead of two of them guessing independently.
+- The same log surfaced a second bug: `.agent-ops`'s checkout sits inside the main working tree (nested `.git` dir), so a broad `git add -A` from Claude Code could get it auto-staged as a gitlink with no matching `.gitmodules` entry — fixed by excluding `.agent-ops/` via `.git/info/exclude` in both jobs, so git never sees it as trackable content in the outer repo.
+
+**Checkpoint — met:** a real ticket went from `approved` label to a PR with the coverage gate running (not crashing) and the registry-configured reviewer tagged, with no manual steps in between.
+
+**Still outstanding from this phase's original scope, not blocking:** the self-hosted PR-Agent/qodo-cover-vs-hosted-Qodo parity call, the deliberate under-tested-change gate-blocking check, folding in the existing Playwright smoke tests, and a deliberately forced mid-pipeline failure test haven't been separately exercised yet — worth doing during Phase 5's real-ticket runs rather than as a one-off synthetic test.
 
 ---
 
