@@ -162,10 +162,14 @@ export async function dispatchRepositoryEvent(
   owner: string,
   repo: string,
   action: "plan" | "implement",
+  issueNumber: number,
 ) {
   await githubRequest(token, `/repos/${owner}/${repo}/dispatches`, {
     method: "POST",
-    body: JSON.stringify({ event_type: "agent-trigger", client_payload: { action } }),
+    body: JSON.stringify({
+      event_type: "agent-trigger",
+      client_payload: { action, issue_number: issueNumber },
+    }),
   });
 }
 

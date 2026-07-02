@@ -83,8 +83,19 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.LITELLM_VIRTUAL_KEY }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         with:
+          # ${{ github.event.issue.number }} covers the `issues` and
+          # `issue_comment` triggers; ${{ github.event.client_payload.issue_number }}
+          # covers repository_dispatch (chat/curl-originated jobs). The action
+          # never auto-injects issue content into the model's context — the
+          # prompt has to name the number explicitly and have the agent fetch
+          # the content itself (confirmed live on run 28611383726: the agent
+          # correctly refused to proceed on "this issue" with no number behind it).
           prompt: |
-            Read this issue and .agent-ops/${{ inputs.skill_folder }}/SKILL.md, plus
+            The issue to work on is #${{ github.event.issue.number || github.event.client_payload.issue_number }}
+            in this repository. Run `gh issue view ${{ github.event.issue.number || github.event.client_payload.issue_number }}
+            --json number,title,body,comments` to read its actual content before doing anything else.
+
+            Then read .agent-ops/${{ inputs.skill_folder }}/SKILL.md, plus
             .agent-ops/skills/shared/approach-doc-format/SKILL.md. Produce an approach doc.
 
             Before creating sub-issues, list this parent's existing sub-issues
@@ -156,8 +167,16 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.LITELLM_VIRTUAL_KEY }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         with:
+          # Same issue-number-interpolation fix as the plan job — the action
+          # never auto-injects issue content, so the prompt has to name the
+          # number and have the agent fetch the approach doc / sub-issues itself.
           prompt: |
-            Read .agent-ops/${{ inputs.skill_folder }}/SKILL.md and
+            The approved issue is #${{ github.event.issue.number || github.event.client_payload.issue_number }}
+            in this repository. Run `gh issue view ${{ github.event.issue.number || github.event.client_payload.issue_number }}
+            --json number,title,body,comments` and list its sub-issues to read the
+            approach doc and acceptance criteria before doing anything else.
+
+            Then read .agent-ops/${{ inputs.skill_folder }}/SKILL.md and
             .agent-ops/skills/shared/approval-gate-protocol/SKILL.md.
             Implement the approved approach for this issue and its sub-issues.
             Write unit tests for the core logic as part of the implementation.

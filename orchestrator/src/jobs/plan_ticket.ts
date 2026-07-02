@@ -20,5 +20,5 @@ export async function dispatchPlan(deps: DispatchDeps, payload: JobPayload): Pro
 
   const [owner, repo] = payload.repo.split("/");
   const token = await getInstallationToken(deps.githubApp, deps.installationId);
-  await dispatchRepositoryEvent(token, owner, repo, "plan");
+  await dispatchRepositoryEvent(token, owner, repo, "plan", payload.issueNumber);
 }
