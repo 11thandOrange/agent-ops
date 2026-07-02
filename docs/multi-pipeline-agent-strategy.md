@@ -167,6 +167,8 @@ Qodo sits *after* implementation, not as part of code generation:
 
 **Central reusable workflow** — `agent-ops/.github/workflows/dev-pipeline-reusable.yml`:
 
+> **Note:** the skeleton below is illustrative — treat the actual file in the repo as the source of truth, not this doc, since it's accumulated real fixes from live testing that aren't worth keeping byte-for-byte duplicated here (`id-token: write` permissions for `claude-code-action`'s OIDC request, and — significant — **a second checkout of `agent-ops` itself with its own App token**. Skills live once, centrally, in `agent-ops` per this doc's own principle, but the reusable workflow only checks out the *calling* repo by default. Since caller repos and `agent-ops` are often under different GitHub accounts, e.g. `11thandOrange/BusyBuddy_v2` vs. `HeyItsChloe/agent-ops`, reading skill files needs a second App token scoped specifically to `agent-ops`'s installation, checked out to a `.agent-ops/` subpath, with the prompt referencing that path rather than assuming skills exist in the caller's own tree. Confirmed as a real bug via a live `BusyBuddy_v2` test run before being fixed.)
+
 ```yaml
 name: dev-pipeline-reusable
 

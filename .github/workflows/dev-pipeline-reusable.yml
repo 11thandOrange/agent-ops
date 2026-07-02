@@ -58,6 +58,25 @@ jobs:
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+      # Skills live once, centrally, in agent-ops (strategy doc §6) — never
+      # duplicated into caller repos. This workflow only checks out the
+      # caller repo by default, so skill paths in the prompt below would
+      # never exist without also checking out agent-ops here. Needs its
+      # own App token: the caller repo (e.g. BusyBuddy_v2, under
+      # 11thandOrange) and agent-ops (under HeyItsChloe) are different
+      # accounts, so the caller-scoped app-token above can't read agent-ops.
+      - uses: actions/create-github-app-token@v1
+        id: agent-ops-token
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: HeyItsChloe
+          repositories: agent-ops
+      - uses: actions/checkout@v4
+        with:
+          repository: HeyItsChloe/agent-ops
+          token: ${{ steps.agent-ops-token.outputs.token }}
+          path: .agent-ops
       - uses: anthropics/claude-code-action@v1
         env:
           ANTHROPIC_BASE_URL: ${{ secrets.LITELLM_PROXY_URL }}
@@ -65,8 +84,8 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         with:
           prompt: |
-            Read this issue and ${{ inputs.skill_folder }}/SKILL.md, plus
-            skills/shared/approach-doc-format/SKILL.md. Produce an approach doc.
+            Read this issue and .agent-ops/${{ inputs.skill_folder }}/SKILL.md, plus
+            .agent-ops/skills/shared/approach-doc-format/SKILL.md. Produce an approach doc.
 
             Before creating sub-issues, list this parent's existing sub-issues
             and skip any whose title already matches the plan — this run must
@@ -96,6 +115,21 @@ jobs:
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+      # Same reasoning as the plan job above — skills live in agent-ops,
+      # under a different account than most caller repos, so this needs
+      # its own checkout and its own App token.
+      - uses: actions/create-github-app-token@v1
+        id: agent-ops-token
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: HeyItsChloe
+          repositories: agent-ops
+      - uses: actions/checkout@v4
+        with:
+          repository: HeyItsChloe/agent-ops
+          token: ${{ steps.agent-ops-token.outputs.token }}
+          path: .agent-ops
       - uses: anthropics/claude-code-action@v1
         env:
           ANTHROPIC_BASE_URL: ${{ secrets.LITELLM_PROXY_URL }}
@@ -103,8 +137,8 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         with:
           prompt: |
-            Read ${{ inputs.skill_folder }}/SKILL.md and
-            skills/shared/approval-gate-protocol/SKILL.md.
+            Read .agent-ops/${{ inputs.skill_folder }}/SKILL.md and
+            .agent-ops/skills/shared/approval-gate-protocol/SKILL.md.
             Implement the approved approach for this issue and its sub-issues.
             Write unit tests for the core logic as part of the implementation.
             Open a PR and request review from ${{ inputs.reviewer }}.
