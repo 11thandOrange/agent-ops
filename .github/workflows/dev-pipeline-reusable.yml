@@ -120,19 +120,23 @@ jobs:
             --body text — the permission system denies any Bash command
             containing a backtick regardless of quoting, even inside a
             quoted string:
-              gh issue comment ${{ github.event.issue.number || github.event.client_payload.issue_number }} --body "@${{ inputs.reviewer }} Planning complete - <N> sub-issues ready for review. Apply the implement label to proceed."
+              gh issue comment ${{ github.event.issue.number || github.event.client_payload.issue_number }} --body "@${{ inputs.reviewer }} Planning complete - <N> sub-issues ready for review. Apply the approach-ready label to proceed."
             Replace <N> with the actual number of sub-issues you created (or
             found already existing, on a re-run).
 
-            Then label this issue "plan".
-          # Labels renamed: `approach-ready` -> `plan`, `approved` -> `implement`
-          # (now matching the `action` input's own values directly). This
-          # workflow doesn't read label names itself — the caller workflow's
-          # `action:` expression does that mapping before calling in — so the
-          # rename only takes effect together with the matching update in
-          # every caller (templates/dev-pipeline-caller.yml and any
-          # already-deployed copies, e.g. BusyBuddy_v2's own
-          # .github/workflows/dev-pipeline.yml).
+            Then label this issue "approach-ready".
+          # NOTE: the reviewer-tag comment above still says "Label
+          # `approach-ready`" (the current, live trigger label), NOT
+          # "implement" — a separate request asked for the comment to say
+          # "Label `implement`" as part of a broader plan to rename
+          # approach-ready -> plan and add a new implement label. That
+          # rename hasn't happened: it requires updating BusyBuddy_v2's own
+          # dev-pipeline.yml caller workflow (which matches on the literal
+          # label names approach-ready/approved to build the `action`
+          # input) in the SAME change as the label rename, or applying the
+          # new labels does nothing at all. This session can't touch
+          # BusyBuddy_v2 to do that half of the work. If/when both sides of
+          # that rename land together, update this comment text to match.
           # --permission-mode dontAsk + explicit --allowedTools: without this,
           # the agent stops and asks for interactive approval on its first
           # Bash/gh call, which has no human to answer it on a CI runner

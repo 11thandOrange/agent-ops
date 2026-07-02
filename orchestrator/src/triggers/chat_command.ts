@@ -67,8 +67,8 @@ export function handleChatCommand(deps: ChatCommandDeps) {
         case "request_approval": {
           const [owner, repo] = call.repo.split("/");
           const token = await getInstallationToken(deps.githubApp, deps.installationId);
-          await labelIssue(token, owner, repo, call.issueNumber, "implement");
-          res.status(202).json({ correlationId, status: "implement" });
+          await labelIssue(token, owner, repo, call.issueNumber, "approved");
+          res.status(202).json({ correlationId, status: "approved" });
           return;
         }
         case "run_project_pipeline": {
