@@ -91,32 +91,28 @@ Validated live on the same pilot repo. Two more rounds of real-run debugging on 
 
 ---
 
-## Phase 4.5 — Two-tier skill model (repo-local + shared)
+## Phase 4.5 — Two-tier skill model (shared, matched by tag)
 
-**(New)** Design decision made after Phase 3/4 validated: skills split into two tiers instead of every project's skill file living centrally in agent-ops (strategy doc §6).
+**(New)** Design decision made after Phase 3/4 validated: skills are matched to projects by tag instead of every project's skill file being a fixed registry pointer. Both tiers stay centralized in agent-ops — no cross-repo skill writes, no migration.
 
-- **Repo-local tier** — a project's own conventions, and anything scoped to exactly one repo (e.g. a single Android repo's gradle quirk), live *in that project's own repo*. Read unconditionally, no matching needed — placement is the scoping mechanism.
-- **Shared tier** — skills meant to apply across every repo of a given kind (e.g. `fe-code-standards` for every Node repo) stay in `agent-ops/skills/shared/`, tagged `applies_to: all` or `applies_to: [<language>, ...]` in frontmatter, matched against each project's `project_language` (now a list). The workflow never hardcodes a skill name — reach is determined by the skill's own tag plus where the file lives.
+- **Shared tier (the default, including a project's own conventions)** — every skill lives in `agent-ops/skills/shared/`, tagged `applies_to: all`, `applies_to: [<language>, ...]`, or `applies_to: [repo:<owner>/<name>]` in frontmatter. The reusable workflow matches this against the project's `project_language` (now a list) and/or `repo` field and tells Claude Code to read whichever skills match. The workflow never hardcodes a skill name — reach is determined entirely by the skill's own tag. `skills/app-1/SKILL.md` (BusyBuddy_v2's own conventions) moves here as `skills/shared/project-conventions/SKILL.md`, tagged `applies_to: all` — it's an ordinary shared skill, not narrowed to one repo.
+- **Repo-local tier (available, unused by any current skill)** — for a skill so specific to a single repo it makes more sense living inside that repo's own checkout than tagged `applies_to: [repo:...]` in agent-ops. No skill needs this today.
 
 Steps:
-1. `registry/projects.yaml` schema: rename `skill_folder` → `skill_path` (now repo-relative, not agent-ops-relative — a breaking semantic change) and change `project_language` from a string to a list.
-2. Add `applies_to` frontmatter to the existing shared skills (`all` for `approach-doc-format` and `approval-gate-protocol`, since both must always apply regardless of stack).
-3. Add a step to `dev-pipeline-reusable.yml` (both `plan` and `implement` jobs) that reads every file under the project's own repo-local skill folder unconditionally, plus every `skills/shared/*/SKILL.md` in agent-ops whose `applies_to` matches the project's `project_language` list or is tagged `all` — and tells Claude Code to read the resulting list.
-4. Update `scaffold_project.ts` so `type: dev` projects get their skill file written into the *target repo*, not agent-ops (it already writes the caller workflow there in the same call — the skill file joins it). `type: personal` projects are unaffected, they have no separate repo to move into.
-5. **Migrate BusyBuddy_v2 — requires a BusyBuddy_v2-scoped session, this session can't write to that repo (scope is agent-ops-only):**
-   - Copy `skills/app-1/SKILL.md`'s content into BusyBuddy_v2's own repo at the path its registry entry's new `skill_path` will point to.
-   - Update BusyBuddy_v2's own `.github/workflows/dev-pipeline.yml` caller workflow to match the new `skill_path` input and pass `project_language` as a list.
-   - Update the `app-1` entry in `agent-ops/orchestrator/src/registry/projects.yaml` to match, in the same change as step 3 landing — same "both sides together or nothing works" constraint as the earlier label rename. Until this lands, `plan`/`implement` runs on BusyBuddy_v2 will fail to find its skill file once the workflow switches to repo-relative reads.
-6. Once migrated and confirmed working, delete `skills/app-1/SKILL.md` from agent-ops — BusyBuddy_v2's own copy becomes the single source of truth, and agent-ops keeps only `skills/shared/` and `skills/personal/`.
+1. `registry/projects.yaml` schema: drop the `skill_folder` field entirely for dev projects — which skills apply is resolved by matching, not a registry pointer. Keep `skill_path` for `type: personal` projects only (they have no `project_language`/`repo` to match against). Change `project_language` from a string to a list.
+2. Add `applies_to` frontmatter to every shared skill: `all` for `approach-doc-format`, `approval-gate-protocol`, `project-scaffold`, and the renamed `project-conventions` (was `app-1`'s skill); language/repo tags for anything narrower added later.
+3. Move `skills/app-1/SKILL.md` → `skills/shared/project-conventions/SKILL.md` within agent-ops (`git mv`, plus add the `applies_to: all` frontmatter field) — a same-repo move, no cross-repo access needed.
+4. Add a step to `dev-pipeline-reusable.yml` (both `plan` and `implement` jobs) that scans every `skills/shared/*/SKILL.md` in the existing `.agent-ops` checkout, matches `applies_to` against the project's `project_language`/`repo`, and tells Claude Code to read the resulting list — replacing the current single hardcoded `${{ inputs.skill_folder }}/SKILL.md` read.
+5. Update `scaffold_project.ts` so `type: dev` projects get their skill file written into `agent-ops/skills/shared/<descriptive-name>/SKILL.md` (not the target repo, and not named after the project's internal registry codename), auto-tagged to match. `type: personal` projects are unaffected.
 
-**Checkpoint:** a plan/implement run on BusyBuddy_v2 correctly reads its own repo-local skill plus any shared skills matching `project_language`, with the skill file no longer duplicated between agent-ops and BusyBuddy_v2.
+**Checkpoint:** a plan/implement run on BusyBuddy_v2 reads `project-conventions` plus any other shared skill matching its `project_language`, entirely from agent-ops — nothing to migrate, nothing that can go stale across two repos.
 
 ---
 
 ## Phase 5 — Close the loop on one repo
 
 1. Run 3–5 real tickets of varying size through the full pipeline (plan → approve → implement → gate → PR) on the pilot repo.
-2. Tune the skill file (now living in BusyBuddy_v2's own repo per Phase 4.5, not `agent-ops/skills/app-1/SKILL.md`) based on what Claude Code consistently gets wrong or has to be told repeatedly.
+2. Tune the skill file (`agent-ops/skills/shared/project-conventions/SKILL.md` per Phase 4.5, not `skills/app-1/SKILL.md`) based on what Claude Code consistently gets wrong or has to be told repeatedly.
 3. Tune `max-turns` and the Qodo `desired_coverage` target based on real run costs/times.
 4. Decide your approval mechanism for real use: is labeling `approved` by hand enough, or do you want the orchestrator to ping you somewhere first? Note this is a chat-only ping (strategy doc §5.2) — there is no separate notification channel to wire up.
 5. **(Revised)** if PR volume across this repo alone already feels like a lot for one reviewer, this is the point to note it — no pipeline change needed, just a reminder that `reviewer` is a per-project registry field and can be changed anytime (strategy doc §8).
