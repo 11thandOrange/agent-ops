@@ -97,15 +97,24 @@ jobs:
           # --permission-mode dontAsk + explicit --allowedTools: without this,
           # the agent stops and asks for interactive approval on its first
           # Bash/gh call, which has no human to answer it on a CI runner
-          # (confirmed live on run 28563851004 — it does not default to
-          # non-interactive). Deliberately narrower than `implement`'s: plan
-          # only ever needs to read/create/label/comment on issues, so the
-          # gh subcommands are enumerable rather than needing a wide-open Bash.
+          # (confirmed live on run 28563851004). Verified locally that
+          # `dontAsk` executes tools correctly at the raw CLI level (both
+          # with clean and deliberately-mangled --allowedTools values) — so
+          # if this run still narrates instead of executing, the `settings`
+          # JSON below (a second, independent mechanism for the same thing)
+          # is the fallback to check, not this flag itself.
           claude_args: |
             --max-turns 12
             --model planning
             --permission-mode dontAsk
             --allowedTools "Read" "Bash(gh issue *)" "Bash(gh api *)" "Bash(gh sub-issue *)"
+          settings: |
+            {
+              "permissions": {
+                "defaultMode": "dontAsk",
+                "allow": ["Read", "Bash(gh issue *)", "Bash(gh api *)", "Bash(gh sub-issue *)"]
+              }
+            }
           # Temporary, for debugging run 28561093550 — the SDK result showed
           # is_error: true with no visible error text because this defaults
           # to false. Revert once the root cause here is confirmed fixed.
@@ -165,6 +174,13 @@ jobs:
             --model implementation
             --permission-mode dontAsk
             --allowedTools "Read" "Edit" "Write" "Bash"
+          settings: |
+            {
+              "permissions": {
+                "defaultMode": "dontAsk",
+                "allow": ["Read", "Edit", "Write", "Bash"]
+              }
+            }
           # Same debugging flag as the plan job above.
           show_full_output: true
 
