@@ -19,7 +19,7 @@ Used during the `plan` job (strategy doc §4.2) before anything is implemented. 
 3. Create one GitHub sub-issue per subtask — the subtask's content is that sub-issue's **body**, not a line in a checklist. Use sub-sub-issues (up to 8 levels deep) only where a subtask is genuinely compound. **Create each one with exactly one command:** `gh issue create --parent <parent_number> --title '<title>' --body '<body>'` — this creates and links the sub-issue atomically and is confirmed to work reliably. Do **not** create a plain issue first and then try to attach it via `gh api .../sub_issues` (REST) or a GraphQL `addSubIssue` mutation — that two-step path reliably returns `403 Resource not accessible by integration` regardless of retries, and just burns turns. If you ever end up with an issue created without `--parent`, close it and recreate it correctly rather than trying to link the orphan retroactively.
 4. **Idempotency**: before creating any sub-issue, list the parent's existing sub-issues and skip titles that already exist. Planning must be safely re-runnable — a retried run should never create duplicates (strategy doc §4.2, roadmap Phase 3 checkpoint).
 5. Post any clarifying notes as **comments** on the relevant issue/sub-issue — never rewrite a description after the fact; the description is the durable spec, comments are the history.
-6. Label the parent issue `approach-ready` and stop. Do not begin implementation in the same run — that only happens after a human applies the `approved` label (see `approval-gate-protocol`).
+6. Label the parent issue `plan` and stop. Do not begin implementation in the same run — that only happens after a human applies the `implement` label (see `approval-gate-protocol`).
 
 ## What not to do
 

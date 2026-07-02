@@ -70,19 +70,19 @@ Build and test the planning half before touching implementation — it's lower-r
 1. In the pilot app repo, add the thin caller workflow (`.github/workflows/dev-pipeline.yml`, strategy doc §4.5) that calls `agent-ops`'s reusable workflow with this repo's registry values.
 2. Add repo secrets: `LITELLM_PROXY_URL`, `LITELLM_VIRTUAL_KEY`, and **(Revised)** `GH_APP_ID` / `GH_APP_PRIVATE_KEY` (or rely on `secrets: inherit` from an org-level secret if the App credentials are set at the org level).
 3. Enable GitHub's sub-issues feature on the repo if not already on (Settings → Issues, or just start using `gh issue create --parent`).
-4. Create a test issue, label it `approach-ready` manually first (skip the orchestrator) to confirm the reusable workflow itself fires Claude Code correctly and creates real sub-issues with content in their descriptions.
+4. Create a test issue, label it `plan` manually first (skip the orchestrator) to confirm the reusable workflow itself fires Claude Code correctly and creates real sub-issues with content in their descriptions.
 5. **(Revised)** re-run the same test issue's plan step a second time (simulate a retry) and confirm it does *not* create duplicate sub-issues — this is the idempotency checkpoint from strategy doc §4.2, tested here rather than assumed to work later.
 6. Once step 4 works, wire the orchestrator's `/webhook/github` to listen for the same event and confirm it can also fire the workflow via `repository_dispatch` — this proves the multi-trigger normalization. Confirm the correlation ID from Phase 2 shows up in both the orchestrator's log and is traceable through to the Action run.
 7. Test the second and third trigger paths: a curl request to `/trigger` (confirm it's rejected without the auth header, then succeeds with it), and an `@dev-agent plan` comment on the issue (confirm the commenter-allowlist check from strategy doc §4.1 passes for you and would reject an unlisted commenter).
 
-**Checkpoint:** all four trigger types (label, mention, curl, and — once Phase 6 lands — chat) produce the same result: real GitHub sub-issues with subtask content in their descriptions, and the parent issue labeled `approach-ready`. A retried plan run doesn't duplicate sub-issues. Unauthenticated requests to the orchestrator are rejected. An unlisted commenter's `@dev-agent` mention is ignored.
+**Checkpoint:** all four trigger types (label, mention, curl, and — once Phase 6 lands — chat) produce the same result: real GitHub sub-issues with subtask content in their descriptions, and the parent issue labeled `plan`. A retried plan run doesn't duplicate sub-issues. Unauthenticated requests to the orchestrator are rejected. An unlisted commenter's `@dev-agent` mention is ignored.
 
 ---
 
 ## Phase 4 — Dev pipeline: implementation + quality gate
 
 1. Add the `implement` job (already present in the reusable workflow from Phase 2 — this step is about testing it, not writing it).
-2. Manually label a test issue `approved` (after a `plan` run) and confirm Claude Code:
+2. Manually label a test issue `implement` (after a `plan` run) and confirm Claude Code:
    - implements a small, low-risk real change
    - writes unit tests as part of the diff
    - opens a PR
@@ -103,7 +103,7 @@ Build and test the planning half before touching implementation — it's lower-r
 1. Run 3–5 real tickets of varying size through the full pipeline (plan → approve → implement → gate → PR) on the pilot repo.
 2. Tune the skill file (`skills/app-1/SKILL.md`) based on what Claude Code consistently gets wrong or has to be told repeatedly.
 3. Tune `max-turns` and the Qodo `desired_coverage` target based on real run costs/times.
-4. Decide your approval mechanism for real use: is labeling `approved` by hand enough, or do you want the orchestrator to ping you somewhere first? Note this is a chat-only ping (strategy doc §5.2) — there is no separate notification channel to wire up.
+4. Decide your approval mechanism for real use: is labeling `implement` by hand enough, or do you want the orchestrator to ping you somewhere first? Note this is a chat-only ping (strategy doc §5.2) — there is no separate notification channel to wire up.
 5. **(Revised)** if PR volume across this repo alone already feels like a lot for one reviewer, this is the point to note it — no pipeline change needed, just a reminder that `reviewer` is a per-project registry field and can be changed anytime (strategy doc §8).
 
 **Checkpoint:** you trust this pipeline enough to use it on real, non-test tickets without watching every step.

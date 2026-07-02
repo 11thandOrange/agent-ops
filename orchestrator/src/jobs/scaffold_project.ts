@@ -143,8 +143,8 @@ jobs:
       reviewer: heyitschloe
       action: >-
         \${{
-          (github.event.label.name == 'approach-ready' && 'plan') ||
-          (github.event.label.name == 'approved' && 'implement') ||
+          (github.event.label.name == 'plan' && 'plan') ||
+          (github.event.label.name == 'implement' && 'implement') ||
           (contains(github.event.comment.body, '@dev-agent plan') && 'plan') ||
           (contains(github.event.comment.body, '@dev-agent implement') && 'implement') ||
           github.event.client_payload.action

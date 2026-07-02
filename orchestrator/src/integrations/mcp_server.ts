@@ -54,7 +54,7 @@ export function buildMcpServer(config: McpBridgeConfig): McpServer {
     "request_approval",
     {
       title: "Request approval",
-      description: "Apply the 'approved' label (or equivalent) to move a ticket to implementation",
+      description: "Apply the 'implement' label (or equivalent) to move a ticket to implementation",
       inputSchema: { repo: z.string(), issueNumber: z.number().int().positive(), requestedBy: z.string() },
     },
     async (args) => textResult(await callOrchestrator(config, { tool: "request_approval", ...args })),

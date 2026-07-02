@@ -112,7 +112,7 @@ Trade-off still accepted, DB or not: there's no separately-scoped, revocable key
 ### 4.1 Triggers — four entry points, one job
 
 The pipeline must be startable by:
-- a GitHub label change (e.g. label set to `approved`)
+- a GitHub label change (e.g. label set to `implement`)
 - a prompt in conversation (chat platform → orchestrator)
 - a direct Postman/curl request to the orchestrator's HTTP API
 - an `@agent_name` comment on a GitHub issue or PR
@@ -133,13 +133,13 @@ GitHub has a native sub-issues feature (REST + GraphQL): up to 100 sub-issues pe
 3. Create one real GitHub sub-issue per subtask via `POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues` (or the GraphQL `addSubIssue` mutation) — the subtask's content becomes that sub-issue's **description**, not a checklist line.
 4. Use sub-sub-issues for further breakdown where useful (up to 8 levels deep).
 5. Post "added notes" as **comments** on whichever issue/sub-issue/sub-sub-issue they relate to, rather than rewriting descriptions.
-6. Label the parent issue `approach-ready` and stop — wait for human approval.
+6. Label the parent issue `plan` and stop — wait for human approval.
 
 **(Revised) idempotency:** if planning fails partway (e.g. 3 of 5 sub-issues created, then an API error), the job must be safely re-runnable — check for existing sub-issues matching the plan before creating new ones, rather than creating duplicates on retry. This is a Phase 3/4 checkpoint now, not a Phase-10 afterthought (§9.1).
 
 ### 4.3 Implementation stage — Claude Code
 
-Once the issue is labeled `approved`, **Claude Code** is the implementor:
+Once the issue is labeled `implement`, **Claude Code** is the implementor:
 
 - Runs headless (`claude -p`) via the official `anthropics/claude-code-action@v1` GitHub Action, authenticated against the LiteLLM gateway rather than the Anthropic API directly, so the model behind this step is swappable.
 - Reads the approved approach doc and its sub-issues, implements the change, writes unit tests as part of the implementation, commits, and opens a PR.
@@ -211,7 +211,7 @@ jobs:
             match the plan (idempotency: do not duplicate on a retried run).
             Create one GitHub sub-issue per subtask via the sub-issues API,
             with the subtask's content as that sub-issue's body.
-            Then label this issue "approach-ready".
+            Then label this issue "plan".
           claude_args: "--max-turns 12 --model planning"
 
   implement:
@@ -275,8 +275,8 @@ jobs:
       reviewer: heyitschloe
       action: >-
         ${{
-          (github.event.label.name == 'approach-ready' && 'plan') ||
-          (github.event.label.name == 'approved' && 'implement') ||
+          (github.event.label.name == 'plan' && 'plan') ||
+          (github.event.label.name == 'implement' && 'implement') ||
           (contains(github.event.comment.body, '@dev-agent plan') && 'plan') ||
           (contains(github.event.comment.body, '@dev-agent implement') && 'implement') ||
           github.event.client_payload.action

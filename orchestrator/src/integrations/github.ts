@@ -3,7 +3,6 @@
 // (strategy doc §7): permissions live on the App, scaling to a new repo is
 // an install, not a re-minted/re-scoped token.
 import jwt from "jsonwebtoken";
-import { logger } from "../logging.js";
 
 const GITHUB_API = "https://api.github.com";
 
@@ -66,45 +65,6 @@ async function githubRequest(token: string, path: string, init: RequestInit = {}
     throw new Error(`GitHub API ${init.method ?? "GET"} ${path} failed: ${res.status} ${await res.text()}`);
   }
   return res.status === 204 ? undefined : res.json();
-}
-
-export interface SubIssueSpec {
-  title: string;
-  body: string;
-}
-
-/**
- * Idempotent: fetches existing sub-issues first and skips any whose title
- * already matches, so a retried plan run doesn't duplicate work (§4.2, the
- * Phase 3 idempotency checkpoint).
- */
-export async function createSubIssuesIdempotent(
-  token: string,
-  owner: string,
-  repo: string,
-  parentIssueNumber: number,
-  subtasks: SubIssueSpec[],
-): Promise<void> {
-  const existing = (await githubRequest(
-    token,
-    `/repos/${owner}/${repo}/issues/${parentIssueNumber}/sub_issues`,
-  )) as Array<{ title: string }>;
-  const existingTitles = new Set(existing.map((i) => i.title));
-
-  for (const subtask of subtasks) {
-    if (existingTitles.has(subtask.title)) {
-      logger.info("skipping duplicate sub-issue on retry", { title: subtask.title, parentIssueNumber });
-      continue;
-    }
-    const created = (await githubRequest(token, `/repos/${owner}/${repo}/issues`, {
-      method: "POST",
-      body: JSON.stringify({ title: subtask.title, body: subtask.body }),
-    })) as { number: number };
-    await githubRequest(token, `/repos/${owner}/${repo}/issues/${parentIssueNumber}/sub_issues`, {
-      method: "POST",
-      body: JSON.stringify({ sub_issue_id: created.number }),
-    });
-  }
 }
 
 export async function labelIssue(token: string, owner: string, repo: string, issueNumber: number, label: string) {

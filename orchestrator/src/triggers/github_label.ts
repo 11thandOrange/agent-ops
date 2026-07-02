@@ -16,8 +16,8 @@ interface GitHubIssuesLabeledPayload {
 }
 
 const LABEL_TO_ACTION: Record<string, JobAction> = {
-  "approach-ready": "plan",
-  approved: "implement",
+  plan: "plan",
+  implement: "implement",
 };
 
 export function parseLabelEvent(payload: GitHubIssuesLabeledPayload): JobPayload | null {
