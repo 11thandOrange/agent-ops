@@ -94,7 +94,18 @@ jobs:
             Create one GitHub sub-issue per subtask via the sub-issues API,
             with the subtask's content as that sub-issue's body.
             Then label this issue "approach-ready".
-          claude_args: "--max-turns 12 --model planning"
+          # --permission-mode dontAsk + explicit --allowedTools: without this,
+          # the agent stops and asks for interactive approval on its first
+          # Bash/gh call, which has no human to answer it on a CI runner
+          # (confirmed live on run 28563851004 — it does not default to
+          # non-interactive). Deliberately narrower than `implement`'s: plan
+          # only ever needs to read/create/label/comment on issues, so the
+          # gh subcommands are enumerable rather than needing a wide-open Bash.
+          claude_args: |
+            --max-turns 12
+            --model planning
+            --permission-mode dontAsk
+            --allowedTools "Read" "Bash(gh issue *)" "Bash(gh api *)" "Bash(gh sub-issue *)"
           # Temporary, for debugging run 28561093550 — the SDK result showed
           # is_error: true with no visible error text because this defaults
           # to false. Revert once the root cause here is confirmed fixed.
@@ -142,7 +153,18 @@ jobs:
             Implement the approved approach for this issue and its sub-issues.
             Write unit tests for the core logic as part of the implementation.
             Open a PR and request review from ${{ inputs.reviewer }}.
-          claude_args: "--max-turns 30 --model implementation"
+          # Same permission-mode fix as the plan job — but broader here: implement
+          # has to run whatever build/test/lint commands the target project uses
+          # (varies per repo, not enumerable in advance the way plan's gh
+          # subcommands are), plus git/gh for committing and opening the PR.
+          # Still narrower than --dangerously-skip-permissions/bypassPermissions,
+          # which would also disable other safety guardrails, not just tool
+          # approval prompts.
+          claude_args: |
+            --max-turns 30
+            --model implementation
+            --permission-mode dontAsk
+            --allowedTools "Read" "Edit" "Write" "Bash"
           # Same debugging flag as the plan job above.
           show_full_output: true
 
