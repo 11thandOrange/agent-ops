@@ -77,6 +77,19 @@ jobs:
           repository: HeyItsChloe/agent-ops
           token: ${{ steps.agent-ops-token.outputs.token }}
           path: .agent-ops
+      # .agent-ops is checked out *inside* this job's main working tree (its
+      # own nested .git dir sitting under the caller repo's checkout), not
+      # beside it. Without this, a broad `git add -A`/`git add .` (a command
+      # Claude Code is entirely likely to run) would make git auto-stage it
+      # as a gitlink — the same mechanism `git submodule add` uses — with no
+      # matching .gitmodules entry, which is exactly the failure mode a
+      # BusyBuddy_v2 run hit ("fatal: No url found for submodule path
+      # '.agent-ops' in .gitmodules", run 28617869792, job 84866050500).
+      # .git/info/exclude is a local-only ignore list: it keeps .agent-ops
+      # out of git add/status for this checkout without touching the caller
+      # repo's own committed .gitignore.
+      - name: Exclude .agent-ops from git
+        run: echo ".agent-ops/" >> .git/info/exclude
       - uses: anthropics/claude-code-action@v1
         env:
           ANTHROPIC_BASE_URL: ${{ secrets.LITELLM_PROXY_URL }}
@@ -193,6 +206,16 @@ jobs:
           repository: HeyItsChloe/agent-ops
           token: ${{ steps.agent-ops-token.outputs.token }}
           path: .agent-ops
+      # Same reasoning as the plan job above.
+      - name: Exclude .agent-ops from git
+        run: echo ".agent-ops/" >> .git/info/exclude
+      # The branch name has to be known *before* Claude Code runs, not
+      # discovered from it afterward — see the Qodo step's comment below for
+      # why. Computed once here so the prompt and the Qodo `branch:` input
+      # are guaranteed to reference the identical value.
+      - name: Compute branch name
+        id: branch
+        run: echo "name=claude/issue-${{ github.event.issue.number || github.event.client_payload.issue_number }}-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
       - uses: anthropics/claude-code-action@v1
         id: claude
         env:
@@ -209,11 +232,20 @@ jobs:
             --json number,title,body,comments` and list its sub-issues to read the
             approach doc and acceptance criteria before doing anything else.
 
+            Before making any changes, create and check out a new branch
+            named exactly `${{ steps.branch.outputs.name }}`
+            (e.g. `git checkout -b ${{ steps.branch.outputs.name }}`) and do
+            all your work on it. Do not rename it and do not check out any
+            other branch afterward — a later workflow step reads this exact
+            name from its own separately-computed value, not from you, so it
+            must match precisely.
+
             Then read .agent-ops/${{ inputs.skill_folder }}/SKILL.md and
             .agent-ops/skills/shared/approval-gate-protocol/SKILL.md.
             Implement the approved approach for this issue and its sub-issues.
             Write unit tests for the core logic as part of the implementation.
-            Open a PR and request review from ${{ inputs.reviewer }}.
+            Commit and push your branch, then open a PR from it and request
+            review from ${{ inputs.reviewer }}.
 
             If you need to create any additional sub-issue during
             implementation, use exactly `gh issue create --parent <parent_number>
@@ -246,15 +278,21 @@ jobs:
         uses: qodo-ai/qodo-ci/.github/actions/qodo-cover@v0.1.12
         with:
           github_token: ${{ steps.app-token.outputs.token }}
-          # github.head_ref is only populated for pull_request-triggered runs
-          # — this job is triggered by issues/issue_comment/repository_dispatch
-          # (via workflow_call), so it was always empty here, causing
-          # `--branch ""` and a fatal git error (confirmed live on run
-          # 28617070102, job 84863424882). claude-code-action exposes the
-          # branch it actually created as its own `branch_name` output —
-          # use that instead, since the branch name is only known at runtime
-          # (Claude Code names it itself, e.g. claude/verified-issue-149).
-          branch: ${{ steps.claude.outputs.branch_name }}
+          # Two prior attempts at this input both reproduced the same
+          # `--branch ""` fatal error (github.head_ref: empty because this
+          # job isn't pull_request-triggered; steps.claude.outputs.branch_name:
+          # empty because that output is only populated when the action
+          # manages branch creation itself in "tag mode" — driven by
+          # trigger_phrase/label_trigger/assignee_trigger or track_progress on
+          # specific issue/PR event types — none of which this job sets, since
+          # Claude Code creates the branch itself via the prompt's Bash
+          # instructions instead. Confirmed via the action's own docs after
+          # the branch_name fix reproduced verbatim on run 28617869792, job
+          # 84866050500). Fix: stop trying to discover the branch name after
+          # the fact — the "Compute branch name" step above fixes it in
+          # advance and the prompt instructs Claude Code to use exactly that
+          # name, so this input and the prompt are guaranteed to agree.
+          branch: ${{ steps.branch.outputs.name }}
           project_language: ${{ inputs.project_language }}
           project_root: .
           code_coverage_report_path: ./coverage/cobertura-coverage.xml
