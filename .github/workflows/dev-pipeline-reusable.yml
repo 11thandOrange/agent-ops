@@ -194,6 +194,7 @@ jobs:
           token: ${{ steps.agent-ops-token.outputs.token }}
           path: .agent-ops
       - uses: anthropics/claude-code-action@v1
+        id: claude
         env:
           ANTHROPIC_BASE_URL: ${{ secrets.LITELLM_PROXY_URL }}
           ANTHROPIC_API_KEY: ${{ secrets.LITELLM_VIRTUAL_KEY }}
@@ -245,7 +246,15 @@ jobs:
         uses: qodo-ai/qodo-ci/.github/actions/qodo-cover@v0.1.12
         with:
           github_token: ${{ steps.app-token.outputs.token }}
-          branch: ${{ github.head_ref }}
+          # github.head_ref is only populated for pull_request-triggered runs
+          # — this job is triggered by issues/issue_comment/repository_dispatch
+          # (via workflow_call), so it was always empty here, causing
+          # `--branch ""` and a fatal git error (confirmed live on run
+          # 28617070102, job 84863424882). claude-code-action exposes the
+          # branch it actually created as its own `branch_name` output —
+          # use that instead, since the branch name is only known at runtime
+          # (Claude Code names it itself, e.g. claude/verified-issue-149).
+          branch: ${{ steps.claude.outputs.branch_name }}
           project_language: ${{ inputs.project_language }}
           project_root: .
           code_coverage_report_path: ./coverage/cobertura-coverage.xml
