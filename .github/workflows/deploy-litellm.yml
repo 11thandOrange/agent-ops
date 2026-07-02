@@ -1,0 +1,57 @@
+name: deploy-litellm
+
+# Deploys litellm/ to Cloud Run using only GitHub Secrets — same pattern as
+# deploy-orchestrator.yml, added after the first litellm deploy was done
+# manually via gcloud from a chat session (before this pattern existed).
+# Trigger manually (Actions tab -> deploy-litellm -> Run workflow) or
+# automatically on a push to main that touches litellm/.
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - "litellm/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build env vars file
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LITELLM_MASTER_KEY: ${{ secrets.LITELLM_VIRTUAL_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python3 - <<'PYEOF'
+          import os
+          import yaml
+
+          data = {
+              "GEMINI_API_KEY": os.environ["GEMINI_API_KEY"],
+              "LITELLM_MASTER_KEY": os.environ["LITELLM_MASTER_KEY"],
+              "DATABASE_URL": os.environ["DATABASE_URL"],
+          }
+          with open("/tmp/env.yaml", "w") as f:
+              yaml.safe_dump(data, f)
+          PYEOF
+
+      - name: Deploy LiteLLM to Cloud Run
+        run: |
+          gcloud run deploy litellm-gateway \
+            --source litellm/ \
+            --project agent-ops-501120 \
+            --region us-central1 \
+            --allow-unauthenticated \
+            --memory 2Gi \
+            --env-vars-file=/tmp/env.yaml

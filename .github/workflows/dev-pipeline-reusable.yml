@@ -76,6 +76,10 @@ jobs:
             with the subtask's content as that sub-issue's body.
             Then label this issue "approach-ready".
           claude_args: "--max-turns 12 --model planning"
+          # Temporary, for debugging run 28561093550 — the SDK result showed
+          # is_error: true with no visible error text because this defaults
+          # to false. Revert once the root cause here is confirmed fixed.
+          show_full_output: true
 
   implement:
     if: inputs.action == 'implement'
@@ -105,6 +109,8 @@ jobs:
             Write unit tests for the core logic as part of the implementation.
             Open a PR and request review from ${{ inputs.reviewer }}.
           claude_args: "--max-turns 30 --model implementation"
+          # Same debugging flag as the plan job above.
+          show_full_output: true
 
       - name: Qodo coverage gate
         uses: qodo-ai/qodo-ci/.github/actions/qodo-cover@v0.1.12
