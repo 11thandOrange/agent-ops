@@ -367,31 +367,37 @@ agent-ops/
 │   │       └── projects.yaml          # one entry per app + personal project
 │   └── package.json
 ├── skills/
-│   ├── shared/
-│   │   ├── approach-doc-format/SKILL.md
-│   │   ├── approval-gate-protocol/SKILL.md
-│   │   └── project-scaffold/SKILL.md   # generates new project skills — not a static template (Revised, §6.1)
-│   ├── app-1/SKILL.md
-│   ├── app-2/SKILL.md
-│   ├── app-3/SKILL.md
-│   └── personal/
+│   ├── shared/                          # (Revised) cross-repo skills only, matched via applies_to — per-app-repo folders no longer live here
+│   │   ├── approach-doc-format/SKILL.md      # applies_to: all
+│   │   ├── approval-gate-protocol/SKILL.md   # applies_to: all
+│   │   ├── project-scaffold/SKILL.md   # generates new project skills — not a static template (Revised, §6.1)
+│   │   ├── fe-code-standards/SKILL.md        # applies_to: [node] — example
+│   │   └── android-gradle-standards/SKILL.md # applies_to: [android] — example
+│   └── personal/                        # personal projects have no separate repo of their own, so these stay centralized
 │       ├── trip-planning/SKILL.md
 │       ├── property-sourcing/SKILL.md
 │       └── asset-purchase/SKILL.md
 ```
 
+**(Revised)** `app-1`'s (and any other dev project's) own `SKILL.md` no longer lives under agent-ops's `skills/` tree at all — it lives inside that project's own repo (e.g. `BusyBuddy_v2/skills/app-1/SKILL.md`), per the repo-local tier above.
+
 **(Revised)** `integrations/bird.ts` and `integrations/qodo.ts` are removed from this tree: Bird per §5.2, and Qodo is invoked as a GitHub Action step (§4.5) rather than an orchestrator-side integration, since it never needs to be called outside that workflow context.
 
-`registry/projects.yaml` is the scaling mechanism — adding a 4th app or a 4th personal project is a new entry, not new pipeline code. **(Revised)** the schema now carries the fields the reusable workflow needs, so nothing is hardcoded per-repo YAML:
+**(Revised) Skills are now two-tier, not all centralized in agent-ops:**
+
+- **Repo-local tier** — a project's own conventions, and anything scoped to exactly one repo (e.g. a single Android repo's gradle quirk), live *in that project's own repo*, not in agent-ops. Everything found there is read unconditionally by the pipeline — placement is the scoping mechanism, no matching logic needed. This replaces the old model where every project's `skills/<name>/SKILL.md` lived centrally in agent-ops.
+- **Shared tier** — skills meant to apply across every repo *of a given kind* (e.g. `fe-code-standards` for every Node repo, a gradle-standards skill for every Android repo) stay in `agent-ops/skills/shared/`, same as `approach-doc-format` and `approval-gate-protocol` always have. Each shared skill's frontmatter declares `applies_to: all` or `applies_to: [<language>, ...]`; the reusable workflow matches this against the project's own `project_language` list and tells Claude Code to read whichever shared skills match. The workflow itself never names a specific skill or a specific repo — reach is determined entirely by where a skill file lives plus its own `applies_to` tag, so adding, narrowing, or repo-scoping a skill later never touches the workflow file.
+
+`registry/projects.yaml` is the scaling mechanism — adding a 4th app or a 4th personal project is a new entry, not new pipeline code. **(Revised)** `skill_folder` is renamed `skill_path` and is now a path *inside the project's own repo* (previously agent-ops-relative — this is a breaking semantic change, not just a rename). `project_language` is now a list, so a polyglot repo can match more than one shared skill's `applies_to`:
 
 ```yaml
 - project: app-1
   type: dev
-  repo: github.com/HeyItsChloe/BusyBuddy_v2
+  repo: github.com/11thandOrange/BusyBuddy_v2
   model_profile: implementation     # alias from litellm/config.yaml
-  skill_folder: skills/app-1
+  skill_path: skills/app-1          # path inside BusyBuddy_v2 itself, not agent-ops
   test_gate: qodo
-  project_language: typescript
+  project_language: [typescript]
   test_command: "npm test -- --coverage"
   coverage_type: cobertura
   desired_coverage: 85
@@ -399,7 +405,7 @@ agent-ops/
 
 - project: trip-planning
   type: personal
-  skill_folder: skills/personal/trip-planning
+  skill_path: skills/personal/trip-planning
   model_profile: planning
 ```
 
@@ -408,7 +414,7 @@ agent-ops/
 **(Revised)** the original idea of a static `skills/_template/SKILL.md` file was dropped: an inert template that a human copies by hand is exactly the kind of asset that goes stale and doesn't get reused consistently. Instead, onboarding a new dev or personal project is itself a pipeline capability:
 
 - `skills/shared/project-scaffold/SKILL.md` defines what a valid project skill must contain (conventions, test commands, guardrails, PR/approach format) and how a new registry entry must be structured.
-- `orchestrator/src/jobs/scaffold_project.ts`, exposed as the `scaffold_project(name, type, repo?)` MCP tool (§5.1), invokes Claude with that skill to actually generate `skills/<name>/SKILL.md`, append the `registry/projects.yaml` entry, and — for a `type: dev` project — generate the thin per-repo caller workflow shown in §4.5 with that project's values filled in.
+- `orchestrator/src/jobs/scaffold_project.ts`, exposed as the `scaffold_project(name, type, repo?)` MCP tool (§5.1), invokes Claude with that skill to generate the project's skill file, append the `registry/projects.yaml` entry, and — for a `type: dev` project — generate the thin per-repo caller workflow shown in §4.5 with that project's values filled in. **(Revised)** for `type: dev`, the skill file is now written *into the target repo itself* (repo-local tier, §6), not into agent-ops — `scaffold_project` already writes the caller workflow into the target repo in the same call, so the skill file joins it there. `type: personal` projects have no separate repo of their own, so their skill file still gets written into agent-ops under `skills/personal/<name>/SKILL.md`, unchanged.
 
 This turns what were Phase 8/9 manual steps ("write a new project skill folder," "add a registry entry," "copy the workflow file") into one reused, agent-driven action instead of three hand-done steps repeated per project.
 
