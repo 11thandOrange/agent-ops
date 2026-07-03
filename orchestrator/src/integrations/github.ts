@@ -133,6 +133,23 @@ export async function dispatchRepositoryEvent(
   });
 }
 
+/**
+ * Reads a file's raw content from a repo. The orchestrator's own Docker
+ * build context is scoped to orchestrator/ only (see Dockerfile), so
+ * skills/ — which lives at the repo root — isn't present in the deployed
+ * container's filesystem. Personal-pipeline skill content is fetched here,
+ * at request time, instead of assumed to exist locally.
+ */
+export async function getFileContents(token: string, owner: string, repo: string, path: string, ref: string): Promise<string> {
+  const res = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/contents/${path}?ref=${ref}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github.raw" },
+  });
+  if (!res.ok) {
+    throw new Error(`failed to read ${path}: ${res.status} ${await res.text()}`);
+  }
+  return res.text();
+}
+
 /** Used by scaffold_project (§6.1) to write the new skill file / registry entry / caller workflow. */
 export async function createOrUpdateFile(
   token: string,

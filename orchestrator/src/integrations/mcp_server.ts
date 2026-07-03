@@ -64,11 +64,26 @@ export function buildMcpServer(config: McpBridgeConfig): McpServer {
     "run_project_pipeline",
     {
       title: "Run project pipeline",
-      description: "Generic entry point for any registered dev or personal project — dispatches by project, not by a per-project tool",
+      description:
+        "Generic entry point for any registered dev or personal project — dispatches by project, not by a per-project tool. " +
+        "Dev projects: pass repo, issueNumber, action. Personal projects: pass project, request (and optionally sourcingMethod/resumeSource/coverLetterSource to override the registry defaults for this call).",
       inputSchema: {
-        repo: z.string(),
-        issueNumber: z.number().int().positive(),
-        action: z.enum(["plan", "implement"]),
+        // Dev shape.
+        repo: z.string().optional().describe("dev only — owner/repo"),
+        issueNumber: z.number().int().positive().optional().describe("dev only"),
+        action: z.enum(["plan", "implement"]).optional().describe("dev only"),
+        // Personal shape.
+        project: z.string().optional().describe("personal only — the registry project name"),
+        request: z.string().optional().describe("personal only — free text: a pasted posting, a URL, or a query, depending on sourcing method"),
+        sourcingMethod: z.enum(["scraping", "api", "manual"]).optional().describe("personal only — overrides the registry's default for this call"),
+        resumeSource: z
+          .union([z.object({ mode: z.literal("gdrive_link"), gdrive_link: z.string() }), z.object({ mode: z.literal("generated_pdf") })])
+          .optional()
+          .describe("personal only — overrides the registry's resume_source for this call"),
+        coverLetterSource: z
+          .union([z.object({ mode: z.literal("gdrive_link"), gdrive_link: z.string() }), z.object({ mode: z.literal("generated_pdf") })])
+          .optional()
+          .describe("personal only — overrides the registry's cover_letter_source for this call"),
         requestedBy: z.string(),
       },
     },

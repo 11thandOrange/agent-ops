@@ -111,7 +111,7 @@ jobs:
       # repo's own committed .gitignore.
       - name: Exclude .agent-ops from git
         run: echo ".agent-ops/" >> .git/info/exclude
-      # Every skill lives in agent-ops/skills/shared/, tagged in its own
+      # Every dev skill lives in agent-ops/skills/shared/dev/, tagged in its own
       # frontmatter with `applies_to: all`, `applies_to: [<language>, ...]`,
       # or `applies_to: [repo:<owner>/<name>]` (strategy doc §6). This step
       # is the only place that tag is ever read — it matches each skill's
@@ -128,7 +128,7 @@ jobs:
         run: |
           IFS=',' read -ra LANGS <<< "$PROJECT_LANGUAGE"
           MATCHES=()
-          for f in .agent-ops/skills/shared/*/SKILL.md; do
+          for f in .agent-ops/skills/shared/dev/*/SKILL.md; do
             [ -f "$f" ] || continue
             TAG=$(awk '/^---$/{c++; next} c==1 && /^applies_to:/{print; exit}' "$f")
             VALUE=$(echo "$TAG" | sed -E 's/^applies_to:[[:space:]]*//')
@@ -287,7 +287,7 @@ jobs:
         run: |
           IFS=',' read -ra LANGS <<< "$PROJECT_LANGUAGE"
           MATCHES=()
-          for f in .agent-ops/skills/shared/*/SKILL.md; do
+          for f in .agent-ops/skills/shared/dev/*/SKILL.md; do
             [ -f "$f" ] || continue
             TAG=$(awk '/^---$/{c++; next} c==1 && /^applies_to:/{print; exit}' "$f")
             VALUE=$(echo "$TAG" | sed -E 's/^applies_to:[[:space:]]*//')

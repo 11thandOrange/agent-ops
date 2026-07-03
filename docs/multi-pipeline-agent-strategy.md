@@ -143,7 +143,7 @@ Once the issue is labeled `approved`, **Claude Code** is the implementor:
 
 - Runs headless (`claude -p`) via the official `anthropics/claude-code-action@v1` GitHub Action, authenticated against the LiteLLM gateway rather than the Anthropic API directly, so the model behind this step is swappable.
 - Reads the approved approach doc and its sub-issues, implements the change, writes unit tests as part of the implementation, commits, and opens a PR.
-- Adds the designated reviewer to the PR automatically — **(Revised)** the reviewer is a per-project field in `registry/projects.yaml` (§6), not fixed. Every project's entry currently sets `reviewer: heyitschloe`, but nothing structural limits it to one person; adding a second reviewer later is a registry edit, not a pipeline change.
+- Adds the designated reviewer to the PR automatically — **(Revised)** the reviewer is a per-project field in `registry/development/projects.yaml` (§6), not fixed. Every project's entry currently sets `reviewer: heyitschloe`, but nothing structural limits it to one person; adding a second reviewer later is a registry edit, not a pipeline change.
 
 **Billing note:** automated/headless Claude usage (Agent SDK, headless `claude -p`, GitHub Actions, third-party agents) is metered separately from interactive `claude.ai` chat or interactive terminal Claude Code usage. Check current terms at docs.claude.com before scaling usage, since this is a recent change and may evolve.
 
@@ -284,7 +284,7 @@ jobs:
     secrets: inherit
 ```
 
-Every input the reusable workflow needs (`test_command`, `coverage_type`, `desired_coverage`, `project_language`, `skill_folder`, `reviewer`) is sourced from that repo's `registry/projects.yaml` entry (§6) when the caller is generated — see the scaffold skill in §6.1. This keeps one source of truth instead of the value living in both the registry and a repo-level GitHub Actions variable.
+Every input the reusable workflow needs (`test_command`, `coverage_type`, `desired_coverage`, `project_language`, `skill_folder`, `reviewer`) is sourced from that repo's `registry/development/projects.yaml` entry (§6) when the caller is generated — see the scaffold skill in §6.1. This keeps one source of truth instead of the value living in both the registry and a repo-level GitHub Actions variable.
 
 This is a working skeleton, not a copy-paste-and-done file — exact `claude_args` flags and Qodo's required inputs vary per repo/stack. Validate end to end on one repo before replicating.
 
@@ -325,9 +325,9 @@ Platform readiness for this, current as of mid-2026:
 
 ### 5.3 Personal pipeline flow
 
-Chat request (any connected MCP client) → orchestrator's trigger adapter → routed via `run_project_pipeline` to the relevant personal project's skill + model alias → Claude (via gateway) executes the research/planning/action → result delivered back in the same chat thread.
+Chat request (any connected MCP client) → orchestrator's trigger adapter → `run_project_pipeline` looks the project up in `registry/personal/projects.yaml` and calls `run_personal_pipeline.ts` directly (no GitHub Actions runner involved — personal projects have no repo) → the job loads the project's skill, gathers the posting via the configured `sourcing_method`, calls the `planning` model alias via the gateway, and renders/assembles the output package → result delivered back in the same chat thread.
 
-**(Revised) LinkedIn ToS note (Phase 7):** "draft and queue, never auto-submit" removes the auto-apply risk, but doesn't by itself clear LinkedIn's Terms of Service — that depends on *how* job data is sourced. If the research/sourcing step scrapes LinkedIn pages directly rather than going through permitted access (manual browsing you do yourself, or an official/authorized API), that's a separate exposure worth resolving explicitly before Phase 7's checkpoint, not assumed away by the no-auto-submit rule.
+**(Re-revised) LinkedIn ToS note (Phase 7):** "draft and queue, never auto-submit" removes the auto-apply risk, but doesn't by itself clear LinkedIn's Terms of Service — that depends on *how* job data is sourced. This was originally left as an open question to resolve before relying on the pipeline; it has since been resolved by decision, not by avoidance: sourcing is now a configurable, per-project `sourcing_method` (`scraping` | `api` | `manual`, §6), and `scraping` — direct, authenticated-session scraping of LinkedIn job pages — is the accepted default for the resume-job-applier project. That is a deliberate acceptance of the ToS exposure this note originally flagged, not a resolution of it; `api`/`manual` remain available as the ToS-safe alternatives if that trade-off ever needs to change for a given run.
 
 ---
 
@@ -354,27 +354,45 @@ agent-ops/
 │   │   │   ├── chat_command.ts        # via the MCP server
 │   │   │   └── http_api.ts            # Postman/curl entrypoint
 │   │   ├── jobs/
-│   │   │   ├── plan_ticket.ts         # subtasks + approach via GH sub-issues API, idempotent retries (Revised)
-│   │   │   ├── implement_ticket.ts    # invokes Claude Code via gateway
-│   │   │   ├── quality_gate.ts        # invokes Qodo
+│   │   │   ├── plan_ticket.ts             # subtasks + approach via GH sub-issues API, idempotent retries (Revised)
+│   │   │   ├── implement_ticket.ts        # invokes Claude Code via gateway
+│   │   │   ├── quality_gate.ts            # invokes Qodo
 │   │   │   ├── open_pr.ts
-│   │   │   └── scaffold_project.ts    # generates a new project's skill file + registry entry (Revised, §6.1)
+│   │   │   ├── run_personal_pipeline.ts   # (New, §5.3/§6) executes personal projects directly — no repo/CI runner to dispatch to, so the orchestrator itself loads the skill and calls the gateway
+│   │   │   ├── sourcing/                  # (New) per-sourcing-method scripts, selected by a personal project's sourcing_method
+│   │   │   │   ├── manual.ts
+│   │   │   │   ├── api.ts
+│   │   │   │   └── scraping.ts
+│   │   │   └── scaffold_project.ts        # generates a new project's skill file + registry entry (Revised, §6.1)
 │   │   ├── integrations/
-│   │   │   ├── github.ts              # GitHub App JWT → installation token exchange (Revised)
+│   │   │   ├── github.ts              # GitHub App JWT → installation token exchange (Revised); also getFileContents, reading skill files remotely since skills/ isn't in the orchestrator's own Docker build context (New)
+│   │   │   ├── litellm.ts             # (New) direct gateway calls for the personal pipeline — the dev pipeline calls the gateway from inside GitHub Actions instead, this is the orchestrator-process equivalent
+│   │   │   ├── pdf.ts                 # (New) renders drafted text to PDF for generated_pdf document sources
 │   │   │   ├── plane.ts
 │   │   │   └── mcp_server.ts
 │   │   └── registry/
-│   │       └── projects.yaml          # one entry per app + personal project
+│   │       ├── load.ts                    # (New) local-fs registry loader — reads the yaml below, bundled into the deployed image at build time
+│   │       ├── development/
+│   │       │   └── projects.yaml          # (Revised) dev projects only — was one shared projects.yaml; split so the two schemas (dev vs personal, non-overlapping) can't cross-contaminate
+│   │       └── personal/
+│   │           └── projects.yaml          # (Revised) personal projects only
 │   └── package.json
 ├── skills/
-│   ├── shared/                          # (Revised) every skill lives here except personal-project skills — matched via applies_to, never hardcoded per-repo
-│   │   ├── approach-doc-format/SKILL.md      # applies_to: all
-│   │   ├── approval-gate-protocol/SKILL.md   # applies_to: all
-│   │   ├── project-scaffold/SKILL.md         # applies_to: all — generates new project skills, not a static template (Revised, §6.1)
-│   │   ├── project-conventions/SKILL.md      # applies_to: all — was skills/app-1/SKILL.md; genuinely shared, not pinned to BusyBuddy_v2 alone
-│   │   ├── fe-code-standards/SKILL.md        # applies_to: [node] — example
-│   │   └── android-gradle-standards/SKILL.md # applies_to: [android] — example
-│   └── personal/                        # personal projects have no repo at all, so these were never app-specific to begin with — unaffected by this change
+│   ├── shared/
+│   │   └── dev/                         # (Revised) dev-only shared tier — was skills/shared/ directly; personal projects never read this folder, matched via applies_to within dev projects only
+│   │       ├── approach-doc-format/SKILL.md      # applies_to: all
+│   │       ├── approval-gate-protocol/SKILL.md   # applies_to: all
+│   │       ├── project-scaffold/SKILL.md         # applies_to: all — generates new project skills, not a static template (Revised, §6.1)
+│   │       ├── project-conventions/SKILL.md      # applies_to: all — was skills/app-1/SKILL.md; genuinely shared, not pinned to BusyBuddy_v2 alone
+│   │       ├── fe-code-standards/SKILL.md        # applies_to: [node] — example
+│   │       └── android-gradle-standards/SKILL.md # applies_to: [android] — example
+│   └── personal/                        # (Revised) no shared tier of their own — each personal project's skill folder is fully self-contained, including its sourcing/ sub-skills
+│       ├── resume-job-applier/
+│       │   ├── SKILL.md
+│       │   └── sourcing/                # (New) one skill per configurable sourcing_method
+│       │       ├── manual/SKILL.md
+│       │       ├── api/SKILL.md
+│       │       └── scraping/SKILL.md    # default — see SKILL.md for the accepted-ToS-risk note
 │       ├── trip-planning/SKILL.md
 │       ├── property-sourcing/SKILL.md
 │       └── asset-purchase/SKILL.md
@@ -382,14 +400,16 @@ agent-ops/
 
 **(Revised)** `integrations/bird.ts` and `integrations/qodo.ts` are removed from this tree: Bird per §5.2, and Qodo is invoked as a GitHub Action step (§4.5) rather than an orchestrator-side integration, since it never needs to be called outside that workflow context.
 
-**(Revised) Skills are two-tier, both tiers centralized in agent-ops:**
+**(Revised) Skills are two-tier for dev projects; personal projects have no shared tier at all:**
 
-- **Shared tier (the default for everything, including a project's own conventions)** — every skill lives in `agent-ops/skills/shared/`, tagged in frontmatter with `applies_to: all`, `applies_to: [<language>, ...]`, or `applies_to: [repo:<owner>/<name>]`. The reusable workflow matches this against the project's `project_language` list and/or its `repo` field and tells Claude Code to read whichever skills match — the workflow itself never names a specific skill or a specific repo. A project's own conventions skill (what used to be `skills/app-1/SKILL.md`) is an ordinary shared skill like any other: tagged `applies_to: all`, reaching every project, not narrowed to BusyBuddy_v2 alone. Nothing here requires cross-repo write access — everything stays in the one control repo.
-- **Repo-local tier (available, not currently used by any project)** — for a skill so specific to a single repo that it makes more sense living inside that repo's own checkout than tagged `applies_to: [repo:...]` in agent-ops (e.g. a narrow build-system quirk only one Android repo would ever need). No current skill uses this; it remains an option for that case if it comes up.
+- **Shared tier, dev only (the default for everything, including a project's own conventions)** — every dev skill lives in `agent-ops/skills/shared/dev/` (Revised — was `skills/shared/` directly; moved so the boundary between dev-shared and personal content is structural, not just a code convention), tagged in frontmatter with `applies_to: all`, `applies_to: [<language>, ...]`, or `applies_to: [repo:<owner>/<name>]`. The reusable workflow matches this against the project's `project_language` list and/or its `repo` field and tells Claude Code to read whichever skills match — the workflow itself never names a specific skill or a specific repo. A project's own conventions skill (what used to be `skills/app-1/SKILL.md`) is an ordinary shared skill like any other: tagged `applies_to: all`, reaching every dev project, not narrowed to BusyBuddy_v2 alone. Nothing here requires cross-repo write access — everything stays in the one control repo.
+- **Repo-local tier, dev only (available, not currently used by any project)** — for a skill so specific to a single repo that it makes more sense living inside that repo's own checkout than tagged `applies_to: [repo:...]` in agent-ops (e.g. a narrow build-system quirk only one Android repo would ever need). No current skill uses this; it remains an option for that case if it comes up.
+- **Personal projects have no shared tier.** Each personal project's skill folder (`skills/personal/<name>/`) is fully self-contained — the personal-pipeline job (`run_personal_pipeline.ts`) only ever reads that one project's `SKILL.md` (and its `sourcing/<method>/SKILL.md`, §5.3), never anything under `skills/shared/dev/`. Content there (GitHub sub-issue format, PR approval gates, dev coding conventions) has no bearing on drafting a resume.
 
-`registry/projects.yaml` is the scaling mechanism — adding a 4th app or a 4th personal project is a new entry, not new pipeline code. **(Revised)** there is no longer a `skill_folder`/`skill_path` field pointing at "the one project skill" — which skills apply to a project is resolved entirely by matching, not by a registry pointer. `project_language` is now a list, so a polyglot repo can match more than one shared skill's `applies_to`:
+Registry entries are split into two files by type — `registry/development/projects.yaml` and `registry/personal/projects.yaml` (Revised: previously one shared `registry/projects.yaml`; the two schemas don't overlap, so a project can never accidentally carry the wrong type's fields). Adding a 4th app or a 4th personal project is a new entry in the matching file, not new pipeline code. There is no `skill_folder`/`skill_path` field for dev projects — which skills apply is resolved entirely by matching, not by a registry pointer. `project_language` is a list, so a polyglot repo can match more than one shared skill's `applies_to`:
 
 ```yaml
+# registry/development/projects.yaml
 - project: app-1
   type: dev
   repo: github.com/11thandOrange/BusyBuddy_v2
@@ -400,19 +420,31 @@ agent-ops/
   coverage_type: cobertura
   desired_coverage: 85
   reviewer: heyitschloe
+```
 
-- project: trip-planning
+```yaml
+# registry/personal/projects.yaml — personal projects keep an explicit
+# skill_path pointer (they have no project_language/repo to match a shared
+# skill against — and, per above, nothing to match against anyway). Each
+# document source is independent; sourcing_method picks which sourcing
+# skill+script gathers posting data (§5.3).
+- project: resume-job-applier
   type: personal
-  skill_path: skills/personal/trip-planning   # personal projects keep an explicit pointer — they have no project_language/repo to match against
+  skill_path: skills/personal/resume-job-applier
   model_profile: planning
+  resume_source:
+    mode: generated_pdf
+  cover_letter_source:
+    mode: generated_pdf
+  sourcing_method: scraping   # default — accepted ToS risk, see the skill file
 ```
 
 ### 6.1 Onboarding a new project — a skill, not a static template
 
 **(Revised)** the original idea of a static `skills/_template/SKILL.md` file was dropped: an inert template that a human copies by hand is exactly the kind of asset that goes stale and doesn't get reused consistently. Instead, onboarding a new dev or personal project is itself a pipeline capability:
 
-- `skills/shared/project-scaffold/SKILL.md` defines what a valid project skill must contain (conventions, test commands, guardrails, PR/approach format) and how a new registry entry must be structured.
-- `orchestrator/src/jobs/scaffold_project.ts`, exposed as the `scaffold_project(name, type, repo?)` MCP tool (§5.1), invokes Claude with that skill to generate the project's skill file, append the `registry/projects.yaml` entry, and — for a `type: dev` project — generate the thin per-repo caller workflow shown in §4.5 with that project's values filled in. **(Revised)** for `type: dev`, the skill file is written into `agent-ops/skills/shared/<descriptive-name>/SKILL.md` (shared tier, §6), tagged `applies_to` to match the new project — never into the target repo, and never named after the project's internal registry codename (e.g. not `skills/app-2/`). `type: personal` projects still get their skill file written under `skills/personal/<name>/SKILL.md`, unchanged — they have no `project_language`/`repo` to match against.
+- `skills/shared/dev/project-scaffold/SKILL.md` defines what a valid project skill must contain (conventions, test commands, guardrails, PR/approach format) and how a new registry entry must be structured.
+- `orchestrator/src/jobs/scaffold_project.ts`, exposed as the `scaffold_project(name, type, repo?)` MCP tool (§5.1), invokes Claude with that skill to generate the project's skill file, append the entry to `registry/development/projects.yaml` or `registry/personal/projects.yaml` (whichever matches `type`), and — for a `type: dev` project — generate the thin per-repo caller workflow shown in §4.5 with that project's values filled in. **(Revised)** for `type: dev`, the skill file is written into `agent-ops/skills/shared/dev/<descriptive-name>/SKILL.md` (shared dev tier, §6), tagged `applies_to` to match the new project — never into the target repo, and never named after the project's internal registry codename (e.g. not `skills/app-2/`). `type: personal` projects still get their skill file written under `skills/personal/<name>/SKILL.md`, unchanged — they have no `project_language`/`repo` to match against, and no shared tier to reach even if they did.
 
 This turns what were Phase 8/9 manual steps ("write a new project skill folder," "add a registry entry," "copy the workflow file") into one reused, agent-driven action instead of three hand-done steps repeated per project.
 
@@ -441,7 +473,7 @@ This turns what were Phase 8/9 manual steps ("write a new project skill folder,"
 
 - **Dev project #1:** `11thandOrange/BusyBuddy_v2`. Currently has a working but different pipeline — OpenHands-based, triggered by a single `ready-to-implement` label, no plan/approval gate, with its own agent roster (`ticket-planner`, `busybuddy-implementer`, `shopify-extension-implementer`, `tester`, `smoke-tester`, `pr-reviewer`) and shared agents in `HeyItsChloe/.agents` (`ticket-manager`, `ci-monitor`, `whatsapp-notifier` via callmebot/Twilio). **Decision: replace this entirely** with the GH Actions + Claude Code + LiteLLM + Qodo architecture in this doc, including the planning/approval gate and real GitHub sub-issues it currently lacks. The OpenHands automation registration, the `ready-to-implement` label trigger, and the callmebot WhatsApp notifier step should all be retired as part of this — don't run both pipelines on the same repo at once.
 - **Agents & skills repo:** `HeyItsChloe/agent-ops` (currently empty) is the long-term home for all skills and orchestrator code. `HeyItsChloe/.agents` is the legacy location BusyBuddy_v2 currently points at — `agent-ops` will replace it once the rebuild lands; until then `.agents` stays as a reference for what the old pipeline did, not as an active dependency.
-- **Reviewer for all dev pipeline PRs:** `@heyitschloe` for now, set per-project in `registry/projects.yaml` — **(Revised)** the field was always meant to support other reviewers later; nothing changes structurally when a second reviewer is added, it's a registry edit.
+- **Reviewer for all dev pipeline PRs:** `@heyitschloe` for now, set per-project in `registry/development/projects.yaml` — **(Revised)** the field was always meant to support other reviewers later; nothing changes structurally when a second reviewer is added, it's a registry edit.
 - **(Re-revised) Hosting — live:** moved from the originally-provisioned Oracle Cloud Free Tier instance to **Google Cloud Run**, GCP project `agent-ops-501120`, region `us-central1`. Switched because the Oracle Cloud path required manual VM/VNIC/public-IP/Caddy setup with real friction, whereas Cloud Run gives HTTPS + a public endpoint automatically from a container push.
   - LiteLLM gateway: `https://litellm-gateway-836703226343.us-central1.run.app` (Phase 1 — live).
   - Orchestrator (MCP server mounted at `/mcp`): `https://orchestrator-836703226343.us-central1.run.app` (Phase 2 — live).
@@ -449,7 +481,7 @@ This turns what were Phase 8/9 manual steps ("write a new project skill folder,"
 - **Model gateway:** Gemini is the only configured model for now (`planning` and `implementation` aliases both point at a Gemini model in `litellm/config.yaml`). Anthropic key to be added later — when it lands, repoint those aliases at Claude rather than standing up new ones, so nothing else in the system needs to change.
 - **(Re-revised) Budget alert — live:** GCP's native Billing → Budgets & alerts (budget named "Agent-Ops", scoped to `agent-ops-501120`) rather than LiteLLM's own DB-backed alerting — set up before real pipeline traffic ran, per the original Phase 1 goal.
 - **Quality gate:** self-hosted `PR-Agent` (`The-PR-Agent/pr-agent`) for review + self-hosted `qodo-cover` for test generation/coverage, both pointed at the LiteLLM gateway. Replaces the hosted Qodo product referenced earlier in this doc, with the fallback decision point in §4.4. **Not yet wired into the reusable workflow** — only `qodo-cover` is in `dev-pipeline-reusable.yml` today; the PR-Agent step is still an open Phase 4 task.
-- **Personal project #1:** resume builder + job applier. Generates resumes and cover letters as **PDF**. Targets **LinkedIn only for now**, with other job sites added later on request. The pipeline never submits on its own; it prepares the PDF and application content, and a human clicks submit in their own logged-in browser session. See §5.3 for the ToS caution on the sourcing step.
+- **Personal project #1:** resume builder + job applier. Each of resume and cover letter is independently either freshly generated as a tailored **PDF** or pointed at an existing Google Drive doc (`resume_source`/`cover_letter_source`, registry/personal/projects.yaml). Targets **LinkedIn only for now**, with other job sites added later on request. The pipeline never submits on its own; it prepares the documents and application content, and a human clicks submit in their own logged-in browser session. **(Revised)** sourcing is now configurable (`sourcing_method`: `scraping` | `api` | `manual`), defaulting to `scraping` — a deliberate, accepted deviation from the ToS caution originally noted in §5.3, not a resolution of it. See `skills/personal/resume-job-applier/sourcing/scraping/SKILL.md` for the explicit risk note.
 - **(Revised) GitHub access — live:** a custom **GitHub App** (`pipeline-orchestrator-opps`, not a PAT) with Issues/PRs/Contents permissions. Installed as **two separate installations**: one on the `heyitschloe` personal account, one on the `11thandOrange` organization (covering `BusyBuddy_v2`) — each has its own installation ID, since GitHub App installations are per-account/org, not global to the App. The App's ID and private key live in GitHub Secrets, not in chat or any file in this repo.
 - **(Revised) Notifications:** chat only, permanently — Bird is not part of this system (§5.2).
 - **(Revised) Orchestrator endpoint auth — verified:** `/trigger`, `/webhook/mcp`, and `/webhook/github` all require a shared-secret or token check from the moment they're stood up in Phase 2. Confirmed working post-deploy: unauthenticated requests to `/trigger` and `/webhook/mcp` return `401`; authenticated requests pass through to Zod validation. `/webhook/github` (GitHub's own HMAC signature, not the shared secret) still needs the GitHub App's Webhook URL pointed at the live orchestrator before it can be exercised for real.

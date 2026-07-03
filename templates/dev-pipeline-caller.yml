@@ -4,12 +4,12 @@
 # BusyBuddy_v2 from agent-ops. Copy this into
 # `<app-repo>/.github/workflows/dev-pipeline.yml` yourself (roadmap Phase 3,
 # step 1), or generate it automatically for future projects via the
-# `scaffold_project` MCP tool (skills/shared/project-scaffold/SKILL.md),
+# `scaffold_project` MCP tool (skills/shared/dev/project-scaffold/SKILL.md),
 # which writes this same content directly into a new repo once the GitHub
 # App is installed there.
 #
 # Values below are pre-filled for the pilot repo (BusyBuddy_v2 / app-1),
-# matching orchestrator/src/registry/projects.yaml — update both together
+# matching orchestrator/src/registry/development/projects.yaml — update both together
 # if either changes.
 #
 # BREAKING (roadmap Phase 4.5): skill_folder was removed from

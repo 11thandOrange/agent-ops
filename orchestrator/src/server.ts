@@ -28,6 +28,15 @@ const config = {
   controlRepoName: process.env.CONTROL_REPO_NAME ?? "agent-ops",
   branch: process.env.CONTROL_REPO_BRANCH ?? "main",
   allowedMentionAuthors: (process.env.ALLOWED_MENTION_AUTHORS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
+  liteLLM: { proxyUrl: requireEnv("LITELLM_PROXY_URL"), virtualKey: requireEnv("LITELLM_VIRTUAL_KEY") },
+  // Optional — only required if a personal project's sourcing_method actually
+  // selects "api"/"scraping" at request time (checked there, not here, since
+  // most requests never need either).
+  jobApiSourcing:
+    process.env.JOB_API_BASE_URL && process.env.JOB_API_KEY
+      ? { baseUrl: process.env.JOB_API_BASE_URL, apiKey: process.env.JOB_API_KEY }
+      : undefined,
+  scrapingSourcing: process.env.LINKEDIN_STORAGE_STATE_PATH ? { storageStatePath: process.env.LINKEDIN_STORAGE_STATE_PATH } : undefined,
 };
 
 const dispatchDeps = { githubApp: config.githubApp, installationId: config.installationId };
@@ -36,6 +45,11 @@ const chatCommandDeps = {
   controlRepoOwner: config.controlRepoOwner,
   controlRepoName: config.controlRepoName,
   branch: config.branch,
+  personalPipeline: {
+    liteLLM: config.liteLLM,
+    apiSourcing: config.jobApiSourcing,
+    scrapingSourcing: config.scrapingSourcing,
+  },
 };
 
 const app = express();
