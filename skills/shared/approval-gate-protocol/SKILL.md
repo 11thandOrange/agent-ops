@@ -1,6 +1,7 @@
 ---
 name: approval-gate-protocol
 description: What must be true before implementation starts, and how the approved label / equivalent trigger is treated. Referenced by every project skill.
+applies_to: all
 ---
 
 # Approval gate protocol

@@ -7,9 +7,8 @@
   type: dev
   repo: github.com/11thandOrange/BusyBuddy_v2
   model_profile: implementation
-  skill_folder: skills/app-1
   test_gate: qodo
-  project_language: typescript
+  project_language: [typescript]
   test_command: "npm test -- --coverage"
   coverage_type: cobertura
   desired_coverage: 85

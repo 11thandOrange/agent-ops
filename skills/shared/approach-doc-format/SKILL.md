@@ -1,6 +1,7 @@
 ---
 name: approach-doc-format
 description: How to structure an approach doc and its GitHub sub-issues during the planning stage of the dev ticket pipeline. Referenced by every project skill.
+applies_to: all
 ---
 
 # Approach doc format

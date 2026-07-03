@@ -80,7 +80,12 @@ export function buildMcpServer(config: McpBridgeConfig): McpServer {
     {
       title: "Scaffold project",
       description: "Onboard a new dev or personal project: generates its skill file, registry entry, and (for dev projects) caller workflow",
-      inputSchema: { name: z.string(), type: z.enum(["dev", "personal"]), repo: z.string().optional() },
+      inputSchema: {
+        name: z.string(),
+        type: z.enum(["dev", "personal"]),
+        repo: z.string().optional(),
+        appliesTo: z.array(z.string()).optional().describe("dev only; defaults to [repo:<repo>] if omitted"),
+      },
     },
     async (args) => textResult(await callOrchestrator(config, { tool: "scaffold_project", ...args })),
   );

@@ -7,6 +7,9 @@ name: dev-pipeline-reusable
 on:
   workflow_call:
     inputs:
+      # Comma-separated (e.g. "typescript" or "typescript,node") — GitHub Actions
+      # workflow_call inputs have no list type. Matched against each shared
+      # skill's own applies_to tag by the "Match shared skills" step below.
       project_language:
         required: true
         type: string
@@ -19,9 +22,6 @@ on:
       desired_coverage:
         required: true
         type: number
-      skill_folder:
-        required: true
-        type: string
       reviewer:
         required: true
         type: string
@@ -90,6 +90,49 @@ jobs:
       # repo's own committed .gitignore.
       - name: Exclude .agent-ops from git
         run: echo ".agent-ops/" >> .git/info/exclude
+      # Every skill lives in agent-ops/skills/shared/, tagged in its own
+      # frontmatter with `applies_to: all`, `applies_to: [<language>, ...]`,
+      # or `applies_to: [repo:<owner>/<name>]` (strategy doc §6). This step
+      # is the only place that tag is ever read — it matches each skill's
+      # applies_to against this project's project_language (comma-separated
+      # input) and/or its own repo, and hands Claude Code the resulting file
+      # list. Nothing here or in the prompt ever names a specific skill —
+      # adding, narrowing, or repo-scoping a skill later never touches this
+      # workflow.
+      - name: Match shared skills
+        id: match-skills
+        env:
+          PROJECT_LANGUAGE: ${{ inputs.project_language }}
+          REPO_FULL_NAME: ${{ github.repository }}
+        run: |
+          IFS=',' read -ra LANGS <<< "$PROJECT_LANGUAGE"
+          MATCHES=()
+          for f in .agent-ops/skills/shared/*/SKILL.md; do
+            [ -f "$f" ] || continue
+            TAG=$(awk '/^---$/{c++; next} c==1 && /^applies_to:/{print; exit}' "$f")
+            VALUE=$(echo "$TAG" | sed -E 's/^applies_to:[[:space:]]*//')
+            if [ "$VALUE" = "all" ]; then
+              MATCHES+=("$f")
+              continue
+            fi
+            LIST=$(echo "$VALUE" | tr -d '[]' | tr ',' '\n')
+            MATCHED=false
+            while IFS= read -r item; do
+              item=$(echo "$item" | xargs)
+              [ -z "$item" ] && continue
+              if [ "$item" = "repo:$REPO_FULL_NAME" ]; then MATCHED=true; fi
+              for lang in "${LANGS[@]}"; do
+                lang=$(echo "$lang" | xargs)
+                if [ "$item" = "$lang" ]; then MATCHED=true; fi
+              done
+            done <<< "$LIST"
+            if [ "$MATCHED" = true ]; then
+              MATCHES+=("$f")
+            fi
+          done
+          echo "list<<SKILL_LIST_EOF" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "${MATCHES[@]}" >> "$GITHUB_OUTPUT"
+          echo "SKILL_LIST_EOF" >> "$GITHUB_OUTPUT"
       - uses: anthropics/claude-code-action@v1
         env:
           ANTHROPIC_BASE_URL: ${{ secrets.LITELLM_PROXY_URL }}
@@ -108,8 +151,9 @@ jobs:
             in this repository. Run `gh issue view ${{ github.event.issue.number || github.event.client_payload.issue_number }}
             --json number,title,body,comments` to read its actual content before doing anything else.
 
-            Then read .agent-ops/${{ inputs.skill_folder }}/SKILL.md, plus
-            .agent-ops/skills/shared/approach-doc-format/SKILL.md. Produce an approach doc.
+            Then read each of these skill files before doing anything else:
+            ${{ steps.match-skills.outputs.list }}
+            Produce an approach doc.
 
             Before creating sub-issues, list this parent's existing sub-issues
             and skip any whose title already matches the plan — this run must
@@ -209,6 +253,41 @@ jobs:
       # Same reasoning as the plan job above.
       - name: Exclude .agent-ops from git
         run: echo ".agent-ops/" >> .git/info/exclude
+      # Same reasoning as the plan job's "Match shared skills" step above.
+      - name: Match shared skills
+        id: match-skills
+        env:
+          PROJECT_LANGUAGE: ${{ inputs.project_language }}
+          REPO_FULL_NAME: ${{ github.repository }}
+        run: |
+          IFS=',' read -ra LANGS <<< "$PROJECT_LANGUAGE"
+          MATCHES=()
+          for f in .agent-ops/skills/shared/*/SKILL.md; do
+            [ -f "$f" ] || continue
+            TAG=$(awk '/^---$/{c++; next} c==1 && /^applies_to:/{print; exit}' "$f")
+            VALUE=$(echo "$TAG" | sed -E 's/^applies_to:[[:space:]]*//')
+            if [ "$VALUE" = "all" ]; then
+              MATCHES+=("$f")
+              continue
+            fi
+            LIST=$(echo "$VALUE" | tr -d '[]' | tr ',' '\n')
+            MATCHED=false
+            while IFS= read -r item; do
+              item=$(echo "$item" | xargs)
+              [ -z "$item" ] && continue
+              if [ "$item" = "repo:$REPO_FULL_NAME" ]; then MATCHED=true; fi
+              for lang in "${LANGS[@]}"; do
+                lang=$(echo "$lang" | xargs)
+                if [ "$item" = "$lang" ]; then MATCHED=true; fi
+              done
+            done <<< "$LIST"
+            if [ "$MATCHED" = true ]; then
+              MATCHES+=("$f")
+            fi
+          done
+          echo "list<<SKILL_LIST_EOF" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "${MATCHES[@]}" >> "$GITHUB_OUTPUT"
+          echo "SKILL_LIST_EOF" >> "$GITHUB_OUTPUT"
       # The branch name has to be known *before* Claude Code runs, not
       # discovered from it afterward — see the Qodo step's comment below for
       # why. Computed once here so the prompt and the Qodo `branch:` input
@@ -240,8 +319,8 @@ jobs:
             name from its own separately-computed value, not from you, so it
             must match precisely.
 
-            Then read .agent-ops/${{ inputs.skill_folder }}/SKILL.md and
-            .agent-ops/skills/shared/approval-gate-protocol/SKILL.md.
+            Then read each of these skill files before doing anything else:
+            ${{ steps.match-skills.outputs.list }}
             Implement the approved approach for this issue and its sub-issues.
             Write unit tests for the core logic as part of the implementation.
             Commit and push your branch, then open a PR from it and request

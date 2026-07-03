@@ -11,6 +11,16 @@
 # Values below are pre-filled for the pilot repo (BusyBuddy_v2 / app-1),
 # matching orchestrator/src/registry/projects.yaml — update both together
 # if either changes.
+#
+# BREAKING (roadmap Phase 4.5): skill_folder was removed from
+# dev-pipeline-reusable.yml's inputs — skills are now matched by tag
+# instead of a fixed pointer (strategy doc §6). BusyBuddy_v2's live
+# .github/workflows/dev-pipeline.yml still passes skill_folder in its
+# `with:` block; passing an input the reusable workflow no longer
+# declares is a hard validation error, not a silent no-op, so plan/implement
+# runs on BusyBuddy_v2 will fail at trigger time until its own caller
+# workflow is updated to match this file (remove skill_folder). This
+# session can't push that change — needs the BusyBuddy_v2-scoped session.
 
 name: dev-pipeline
 
@@ -38,7 +48,6 @@ jobs:
       test_command: "npm test -- --coverage"
       coverage_type: cobertura
       desired_coverage: 85
-      skill_folder: skills/app-1
       reviewer: heyitschloe
       action: >-
         ${{

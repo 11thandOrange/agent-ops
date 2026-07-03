@@ -26,6 +26,7 @@ const ToolCallBody = z.discriminatedUnion("tool", [
     name: z.string(),
     type: z.enum(["dev", "personal"]),
     repo: z.string().optional(),
+    appliesTo: z.array(z.string()).optional(),
   }),
 ]);
 
