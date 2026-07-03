@@ -43,6 +43,44 @@ export type DocumentSource =
 // oversight. "api" and "manual" are the safer alternatives, opt-in.
 export type SourcingMethod = "scraping" | "api" | "manual";
 
+// How postings are discovered — separate from SourcingMethod, which is
+// "how do I fetch a *known* posting's content." scrapeOne needs no
+// discovery (the request IS the posting); scrapeAll crawls one given
+// site's listings; scrapeAny searches the open web with no site allowlist
+// (an explicit, accepted choice — see the scrapeAny discovery module).
+export type Strategy = "scrapeOne" | "scrapeAll" | "scrapeAny";
+
+// Best-effort filter criteria for scrapeAll/scrapeAny. Matching is forgiving
+// by design: a candidate posting with no discoverable data for a given
+// criterion is not excluded on that criterion alone (scraped/searched
+// metadata is often incomplete) — only blacklist and clearly-contradicted
+// fields (e.g. remote: true against an explicitly on-site posting) exclude.
+export interface JobCriteria {
+  title?: string;
+  location?: string;
+  remote?: boolean;
+  salaryMin?: number;
+  salaryMax?: number;
+  skills?: string[];
+  keywords?: string[];
+  websites?: string[]; // scrapeAny: biases the search query, does not restrict results (no allowlist — confirmed)
+  datePostedAfter?: string; // ISO date
+  company?: string;
+  whitelist?: Record<string, string[]>; // field name -> values that must appear (case-insensitive substring)
+  blacklist?: Record<string, string[]>; // field name -> values that must NOT appear
+}
+
+export interface PostingCandidate {
+  url: string;
+  title?: string;
+  company?: string;
+  location?: string;
+  remote?: boolean;
+  salary?: string;
+  postedDate?: string;
+  snippet?: string;
+}
+
 export interface PersonalProjectEntry {
   project: string;
   type: "personal";
@@ -51,6 +89,8 @@ export interface PersonalProjectEntry {
   resume_source: DocumentSource;
   cover_letter_source: DocumentSource;
   sourcing_method: SourcingMethod;
+  strategy: Strategy;
+  max_results: number; // caps scrapeAll/scrapeAny — each result costs a full model call + document renders
 }
 
 export type ProjectEntry = DevProjectEntry | PersonalProjectEntry;

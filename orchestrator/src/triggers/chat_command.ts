@@ -16,36 +16,57 @@ const DocumentSourceSchema = z.union([
   z.object({ mode: z.literal("generated_pdf") }),
 ]);
 
-// run_project_pipeline stays one tool name (§5.1: "dispatches by project,
-// not by a per-project tool"), but dev and personal projects genuinely have
-// different call shapes — dev dispatches by repo+issueNumber (fires a
-// GitHub Actions run), personal dispatches by project name+free-text
-// request (the orchestrator itself executes it, no CI runner involved).
-// Two full variants distinguished structurally (repo vs. project) rather
-// than a redundant "kind" flag the caller would have to keep in sync.
-const RunDevPipeline = z.object({
-  tool: z.literal("run_project_pipeline"),
+const JobCriteriaSchema = z.object({
+  title: z.string().optional(),
+  location: z.string().optional(),
+  remote: z.boolean().optional(),
+  salaryMin: z.number().optional(),
+  salaryMax: z.number().optional(),
+  skills: z.array(z.string()).optional(),
+  keywords: z.array(z.string()).optional(),
+  websites: z.array(z.string()).optional(),
+  datePostedAfter: z.string().optional(),
+  company: z.string().optional(),
+  whitelist: z.record(z.array(z.string())).optional(),
+  blacklist: z.record(z.array(z.string())).optional(),
+});
+
+// Two tool names, not one overloaded run_project_pipeline — dev and
+// personal projects have structurally different call shapes (dev:
+// repo+issueNumber, fires a GitHub Actions run; personal: project+request,
+// executed directly by the orchestrator), and a discriminated union on two
+// distinct literals gives exhaustive type narrowing and clean per-tool MCP
+// schemas instead of one flat schema with "dev only"/"personal only"
+// field annotations. Doesn't change the registry split (still two files
+// regardless of tool naming).
+const RunDevelopmentProjectPipeline = z.object({
+  tool: z.literal("run_development_project_pipeline"),
   repo: z.string(),
   issueNumber: z.number().int().positive(),
   action: z.enum(["plan", "implement"]),
   requestedBy: z.string(),
 });
-const RunPersonalPipeline = z.object({
-  tool: z.literal("run_project_pipeline"),
+const RunPersonalProjectPipeline = z.object({
+  tool: z.literal("run_personal_project_pipeline"),
   project: z.string(),
+  // scrapeOne: a pasted posting or its URL. scrapeAll: the site URL to
+  // crawl. scrapeAny: ignored — criteria drives the search.
   request: z.string(),
   requestedBy: z.string(),
   sourcingMethod: z.enum(["scraping", "api", "manual"]).optional(),
   resumeSource: DocumentSourceSchema.optional(),
   coverLetterSource: DocumentSourceSchema.optional(),
+  strategy: z.enum(["scrapeOne", "scrapeAll", "scrapeAny"]).optional(),
+  criteria: JobCriteriaSchema.optional(),
+  maxResults: z.number().int().positive().optional(),
 });
 
-const ToolCallBody = z.union([
+const ToolCallBody = z.discriminatedUnion("tool", [
   z.object({ tool: z.literal("create_ticket"), repo: z.string(), title: z.string(), body: z.string(), requestedBy: z.string() }),
   z.object({ tool: z.literal("check_status"), repo: z.string(), issueNumber: z.number().int().positive() }),
   z.object({ tool: z.literal("request_approval"), repo: z.string(), issueNumber: z.number().int().positive(), requestedBy: z.string() }),
-  RunDevPipeline,
-  RunPersonalPipeline,
+  RunDevelopmentProjectPipeline,
+  RunPersonalProjectPipeline,
   z.object({
     tool: z.literal("scaffold_project"),
     name: z.string(),
@@ -61,7 +82,10 @@ export interface ChatCommandDeps {
   controlRepoOwner: string;
   controlRepoName: string;
   branch: string;
-  personalPipeline: Pick<PersonalPipelineDeps, "liteLLM" | "apiSourcing" | "scrapingSourcing">;
+  personalPipeline: Pick<
+    PersonalPipelineDeps,
+    "liteLLM" | "apiSourcing" | "scrapingSourcing" | "scrapeAllSourcing" | "scrapeAnySourcing" | "theStore"
+  >;
 }
 
 export function handleChatCommand(deps: ChatCommandDeps) {
@@ -98,24 +122,24 @@ export function handleChatCommand(deps: ChatCommandDeps) {
           res.status(202).json({ correlationId, status: "approved" });
           return;
         }
-        case "run_project_pipeline": {
-          if ("repo" in call) {
-            const payload = {
-              repo: call.repo,
-              issueNumber: call.issueNumber,
-              action: call.action,
-              requestedBy: call.requestedBy,
-              source: "chat" as const,
-              correlationId,
-            };
-            if (call.action === "plan") {
-              await dispatchPlan(deps, payload);
-            } else {
-              await dispatchImplement(deps, payload);
-            }
-            res.status(202).json({ correlationId, status: "dispatched" });
-            return;
+        case "run_development_project_pipeline": {
+          const payload = {
+            repo: call.repo,
+            issueNumber: call.issueNumber,
+            action: call.action,
+            requestedBy: call.requestedBy,
+            source: "chat" as const,
+            correlationId,
+          };
+          if (call.action === "plan") {
+            await dispatchPlan(deps, payload);
+          } else {
+            await dispatchImplement(deps, payload);
           }
+          res.status(202).json({ correlationId, status: "dispatched" });
+          return;
+        }
+        case "run_personal_project_pipeline": {
           const personalDeps: PersonalPipelineDeps = {
             githubApp: deps.githubApp,
             installationId: deps.installationId,
@@ -132,6 +156,9 @@ export function handleChatCommand(deps: ChatCommandDeps) {
             sourcingMethod: call.sourcingMethod,
             resumeSource: call.resumeSource,
             coverLetterSource: call.coverLetterSource,
+            strategy: call.strategy,
+            criteria: call.criteria,
+            maxResults: call.maxResults,
           });
           res.status(200).json({ correlationId, status: "complete", result });
           return;

@@ -37,18 +37,52 @@ const config = {
       ? { baseUrl: process.env.JOB_API_BASE_URL, apiKey: process.env.JOB_API_KEY }
       : undefined,
   scrapingSourcing: process.env.LINKEDIN_STORAGE_STATE_PATH ? { storageStatePath: process.env.LINKEDIN_STORAGE_STATE_PATH } : undefined,
+  // scrapeAll reuses the same saved session as sourcing_method: scraping
+  // when the target listings page needs login — optional, since not every
+  // site being crawled requires it.
+  scrapeAllSourcing: { storageStatePath: process.env.LINKEDIN_STORAGE_STATE_PATH },
+  scrapeAnySourcing:
+    process.env.WEB_SEARCH_API_URL && process.env.WEB_SEARCH_API_KEY
+      ? { searchApiUrl: process.env.WEB_SEARCH_API_URL, searchApiKey: process.env.WEB_SEARCH_API_KEY }
+      : undefined,
+  // the-store didn't exist yet when this was built — unset until the repo
+  // is created and these env vars are configured; appends are skipped (with
+  // a warning) rather than failing the pipeline while it's unset.
+  theStore:
+    process.env.THE_STORE_OWNER && process.env.THE_STORE_REPO
+      ? {
+          owner: process.env.THE_STORE_OWNER,
+          repo: process.env.THE_STORE_REPO,
+          branch: process.env.THE_STORE_BRANCH ?? "main",
+          path: process.env.THE_STORE_PATH ?? "projects/job-applications/job-app-results.csv",
+        }
+      : undefined,
 };
 
 const dispatchDeps = { githubApp: config.githubApp, installationId: config.installationId };
+const personalPipelineDeps = {
+  liteLLM: config.liteLLM,
+  apiSourcing: config.jobApiSourcing,
+  scrapingSourcing: config.scrapingSourcing,
+  scrapeAllSourcing: config.scrapeAllSourcing,
+  scrapeAnySourcing: config.scrapeAnySourcing,
+  theStore: config.theStore,
+};
 const chatCommandDeps = {
   ...dispatchDeps,
   controlRepoOwner: config.controlRepoOwner,
   controlRepoName: config.controlRepoName,
   branch: config.branch,
-  personalPipeline: {
-    liteLLM: config.liteLLM,
-    apiSourcing: config.jobApiSourcing,
-    scrapingSourcing: config.scrapingSourcing,
+  personalPipeline: personalPipelineDeps,
+};
+const httpTriggerDeps = {
+  dev: dispatchDeps,
+  personal: {
+    ...dispatchDeps,
+    controlRepoOwner: config.controlRepoOwner,
+    controlRepoName: config.controlRepoName,
+    branch: config.branch,
+    ...personalPipelineDeps,
   },
 };
 
@@ -63,7 +97,7 @@ app.use(
   }),
 );
 
-app.post("/trigger", sharedSecretAuth(config.sharedSecret), handleHttpTrigger(dispatchDeps));
+app.post("/trigger", sharedSecretAuth(config.sharedSecret), handleHttpTrigger(httpTriggerDeps));
 
 app.post("/webhook/mcp", sharedSecretAuth(config.sharedSecret), handleChatCommand(chatCommandDeps));
 

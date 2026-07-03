@@ -19,3 +19,11 @@
   # ToS (see SKILL.md's sourcing section), not an oversight. Override per
   # request or by changing this default.
   sourcing_method: scraping
+  # How postings are discovered: scrapeOne (a single known posting — the
+  # default), scrapeAll (crawl one given site's listings), or scrapeAny
+  # (search the open web, no site allowlist). Override per request.
+  strategy: scrapeOne
+  # Caps applications produced per scrapeAll/scrapeAny run — each one is a
+  # full model call + document renders. Ignored by scrapeOne. Override per
+  # request.
+  max_results: 10

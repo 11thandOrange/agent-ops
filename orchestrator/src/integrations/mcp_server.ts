@@ -60,34 +60,62 @@ export function buildMcpServer(config: McpBridgeConfig): McpServer {
     async (args) => textResult(await callOrchestrator(config, { tool: "request_approval", ...args })),
   );
 
+  const documentSourceSchema = z.union([
+    z.object({ mode: z.literal("gdrive_link"), gdrive_link: z.string() }),
+    z.object({ mode: z.literal("generated_pdf") }),
+  ]);
+  const jobCriteriaSchema = z.object({
+    title: z.string().optional(),
+    location: z.string().optional(),
+    remote: z.boolean().optional(),
+    salaryMin: z.number().optional(),
+    salaryMax: z.number().optional(),
+    skills: z.array(z.string()).optional(),
+    keywords: z.array(z.string()).optional(),
+    websites: z.array(z.string()).optional().describe("biases scrapeAny's search query — not an allowlist, results aren't restricted to these sites"),
+    datePostedAfter: z.string().optional().describe("ISO date"),
+    company: z.string().optional(),
+    whitelist: z.record(z.array(z.string())).optional().describe("field name -> values that must appear"),
+    blacklist: z.record(z.array(z.string())).optional().describe("field name -> values that must NOT appear"),
+  });
+
   server.registerTool(
-    "run_project_pipeline",
+    "run_development_project_pipeline",
     {
-      title: "Run project pipeline",
-      description:
-        "Generic entry point for any registered dev or personal project — dispatches by project, not by a per-project tool. " +
-        "Dev projects: pass repo, issueNumber, action. Personal projects: pass project, request (and optionally sourcingMethod/resumeSource/coverLetterSource to override the registry defaults for this call).",
+      title: "Run development project pipeline",
+      description: "Dispatches a plan or implement run for a registered dev project (GitHub Actions, via repository_dispatch).",
       inputSchema: {
-        // Dev shape.
-        repo: z.string().optional().describe("dev only — owner/repo"),
-        issueNumber: z.number().int().positive().optional().describe("dev only"),
-        action: z.enum(["plan", "implement"]).optional().describe("dev only"),
-        // Personal shape.
-        project: z.string().optional().describe("personal only — the registry project name"),
-        request: z.string().optional().describe("personal only — free text: a pasted posting, a URL, or a query, depending on sourcing method"),
-        sourcingMethod: z.enum(["scraping", "api", "manual"]).optional().describe("personal only — overrides the registry's default for this call"),
-        resumeSource: z
-          .union([z.object({ mode: z.literal("gdrive_link"), gdrive_link: z.string() }), z.object({ mode: z.literal("generated_pdf") })])
-          .optional()
-          .describe("personal only — overrides the registry's resume_source for this call"),
-        coverLetterSource: z
-          .union([z.object({ mode: z.literal("gdrive_link"), gdrive_link: z.string() }), z.object({ mode: z.literal("generated_pdf") })])
-          .optional()
-          .describe("personal only — overrides the registry's cover_letter_source for this call"),
+        repo: z.string().describe("owner/repo"),
+        issueNumber: z.number().int().positive(),
+        action: z.enum(["plan", "implement"]),
         requestedBy: z.string(),
       },
     },
-    async (args) => textResult(await callOrchestrator(config, { tool: "run_project_pipeline", ...args })),
+    async (args) => textResult(await callOrchestrator(config, { tool: "run_development_project_pipeline", ...args })),
+  );
+
+  server.registerTool(
+    "run_personal_project_pipeline",
+    {
+      title: "Run personal project pipeline",
+      description:
+        "Runs a registered personal project directly (no CI runner — the orchestrator executes it). " +
+        "strategy scrapeOne: request is a pasted posting or its URL, one application produced. " +
+        "scrapeAll: request is a job-site URL to crawl, up to maxResults applications produced from matches. " +
+        "scrapeAny: request is ignored, criteria drives an open web search (no site allowlist), up to maxResults applications produced.",
+      inputSchema: {
+        project: z.string().describe("the registry project name"),
+        request: z.string(),
+        requestedBy: z.string(),
+        sourcingMethod: z.enum(["scraping", "api", "manual"]).optional().describe("overrides the registry's default for this call"),
+        resumeSource: documentSourceSchema.optional().describe("overrides the registry's resume_source for this call"),
+        coverLetterSource: documentSourceSchema.optional().describe("overrides the registry's cover_letter_source for this call"),
+        strategy: z.enum(["scrapeOne", "scrapeAll", "scrapeAny"]).optional().describe("overrides the registry's default for this call"),
+        criteria: jobCriteriaSchema.optional().describe("scrapeAll/scrapeAny only — filters candidate postings"),
+        maxResults: z.number().int().positive().optional().describe("scrapeAll/scrapeAny only — caps applications produced, overrides the registry default"),
+      },
+    },
+    async (args) => textResult(await callOrchestrator(config, { tool: "run_personal_project_pipeline", ...args })),
   );
 
   server.registerTool(

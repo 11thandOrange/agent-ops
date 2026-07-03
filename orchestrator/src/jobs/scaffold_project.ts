@@ -11,7 +11,7 @@
 import YAML from "yaml";
 import { createOrUpdateFile, getInstallationToken, type GitHubAppConfig } from "../integrations/github.js";
 import { logger } from "../logging.js";
-import type { DevProjectEntry, DocumentSource, PersonalProjectEntry, SourcingMethod } from "../types.js";
+import type { DevProjectEntry, DocumentSource, PersonalProjectEntry, SourcingMethod, Strategy } from "../types.js";
 
 export interface ScaffoldRequest {
   name: string;
@@ -28,6 +28,8 @@ export interface ScaffoldRequest {
   resumeSource?: DocumentSource;
   coverLetterSource?: DocumentSource;
   sourcingMethod?: SourcingMethod;
+  strategy?: Strategy;
+  maxResults?: number;
 }
 
 export interface ScaffoldDeps {
@@ -98,6 +100,8 @@ export async function scaffoldProject(deps: ScaffoldDeps, req: ScaffoldRequest):
       resume_source: req.resumeSource ?? { mode: "generated_pdf" },
       cover_letter_source: req.coverLetterSource ?? { mode: "generated_pdf" },
       sourcing_method: req.sourcingMethod ?? "manual",
+      strategy: req.strategy ?? "scrapeOne",
+      max_results: req.maxResults ?? 10,
     });
     await createOrUpdateFile(token, deps.controlRepoOwner, deps.controlRepoName, path, YAML.stringify(entries), `Register ${req.name} project`, deps.branch);
   }

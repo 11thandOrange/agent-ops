@@ -296,14 +296,15 @@ This is a working skeleton, not a copy-paste-and-done file — exact `claude_arg
 
 Discord is not required. Instead of a fixed chat app, the system exposes **one MCP (Model Context Protocol) server** wrapping the orchestrator's functions as tools. Any MCP-capable chat client can then connect to that same server — the chat platform becomes swappable without rebuilding the integration.
 
-**(Revised) tool surface, collapsed:** the original draft listed a separate tool per personal-project type (`plan_trip`, `source_property`, etc.), which meant adding a new personal project required adding a new tool — breaking the "config entry, not new code" principle in §2. Instead:
+**(Revised) tool surface, collapsed by category, not by project:** the original draft listed a separate tool per personal-project type (`plan_trip`, `source_property`, etc.), which meant adding a new personal project required adding a new tool — breaking the "config entry, not new code" principle in §2. That's still true: one tool per project was never built. **(Re-revised)** what *did* change is that the single `run_project_pipeline` tool split into two — one per *category* (dev vs. personal), not per project — since dev and personal calls have structurally different shapes (dev: `repo`+`issueNumber`; personal: `project`+`request`) that were awkward to force into one flat schema. Adding a 4th app repo or a 4th personal project still never adds a tool; it's still a registry entry:
 
 | Tool | Scope |
 |---|---|
 | `create_ticket` | Dev pipeline — file a new ticket on a registered app repo |
 | `check_status` | Dev or personal — status of any registered job/ticket |
 | `request_approval` | Dev pipeline — apply the `approved` label / equivalent |
-| `run_project_pipeline(project, request)` | **Generic** entry point for any `type: personal` registry entry — dispatches by project name, so a new personal project is a new registry entry, not a new tool |
+| `run_development_project_pipeline(repo, issueNumber, action)` | Dev projects — dispatches a plan/implement run via GitHub Actions |
+| `run_personal_project_pipeline(project, request, ...)` | Personal projects — executed directly by the orchestrator, no CI runner. Also accepts `strategy` (`scrapeOne`/`scrapeAll`/`scrapeAny`, §5.3), `criteria`, and `maxResults` |
 | `scaffold_project(name, type, repo?)` | Onboard a new dev or personal project — see §6.1 |
 
 Platform readiness for this, current as of mid-2026:
@@ -325,9 +326,19 @@ Platform readiness for this, current as of mid-2026:
 
 ### 5.3 Personal pipeline flow
 
-Chat request (any connected MCP client) → orchestrator's trigger adapter → `run_project_pipeline` looks the project up in `registry/personal/projects.yaml` and calls `run_personal_pipeline.ts` directly (no GitHub Actions runner involved — personal projects have no repo) → the job loads the project's skill, gathers the posting via the configured `sourcing_method`, calls the `planning` model alias via the gateway, and renders/assembles the output package → result delivered back in the same chat thread.
+Chat request (via `run_personal_project_pipeline`) or a Postman/curl `POST /trigger` with `kind: "personal"` (**New** — `/trigger` was dev-only through Phase 7, fixed alongside the tool split above) → orchestrator's trigger adapter → looks the project up in `registry/personal/projects.yaml` and calls `run_personal_pipeline.ts` directly (no GitHub Actions runner involved — personal projects have no repo) → the job loads the project's skill, **discovers candidate postings per the requested `strategy`** (**New** — see below), and for each candidate: gathers its content via the configured `sourcing_method`, calls the `planning` model alias via the gateway, renders/assembles the output package, and appends a row to `the-store` (§8) → result(s) delivered back in the same chat thread.
 
-**(Re-revised) LinkedIn ToS note (Phase 7):** "draft and queue, never auto-submit" removes the auto-apply risk, but doesn't by itself clear LinkedIn's Terms of Service — that depends on *how* job data is sourced. This was originally left as an open question to resolve before relying on the pipeline; it has since been resolved by decision, not by avoidance: sourcing is now a configurable, per-project `sourcing_method` (`scraping` | `api` | `manual`, §6), and `scraping` — direct, authenticated-session scraping of LinkedIn job pages — is the accepted default for the resume-job-applier project. That is a deliberate acceptance of the ToS exposure this note originally flagged, not a resolution of it; `api`/`manual` remain available as the ToS-safe alternatives if that trade-off ever needs to change for a given run.
+**(New) Discovery strategy — a second, separate axis from `sourcing_method`:** `sourcing_method` (above) answers "how do I fetch a *known* posting's content." `strategy` answers "how many postings, and how are they found":
+
+- `scrapeOne` (default) — the request itself is a known posting/URL, no discovery step, one application produced.
+- `scrapeAll` — the request is a job-site URL; `orchestrator/src/jobs/discovery/scrapeAll.ts` crawls its listings (rendering the page and asking the model to identify individual posting links, since fixed selectors can't generalize per site the way `sourcing/scraping.ts`'s LinkedIn-specific selectors do for one known site) and filters by `criteria`.
+- `scrapeAny` — no URL given; `orchestrator/src/jobs/discovery/scrapeAny.ts` searches the open web via a configurable search API. **Confirmed scope: no site allowlist** — this is a broader, less-characterized version of the scraping ToS exposure below, not bounded to LinkedIn or any named list of sites.
+
+Both `scrapeAll`/`scrapeAny` cap results at `max_results` (registry default 10, per-call override) — each result costs a full model call plus document renders, so this is a real cost/latency bound, not an arbitrary one. Candidates are filtered by `criteria` (title, location, remote, salary, skills, keywords, date posted, company, whitelist/blacklist) via `orchestrator/src/jobs/criteria.ts`, deliberately forgiving toward missing data rather than over-excluding on incomplete scraped/searched metadata.
+
+**(Re-revised) LinkedIn ToS note (Phase 7):** "draft and queue, never auto-submit" removes the auto-apply risk, but doesn't by itself clear LinkedIn's Terms of Service — that depends on *how* job data is sourced. This was originally left as an open question to resolve before relying on the pipeline; it has since been resolved by decision, not by avoidance: sourcing is now a configurable, per-project `sourcing_method` (`scraping` | `api` | `manual`, §6), and `scraping` — direct, authenticated-session scraping of LinkedIn job pages — is the accepted default for the resume-job-applier project. That is a deliberate acceptance of the ToS exposure this note originally flagged, not a resolution of it; `api`/`manual` remain available as the ToS-safe alternatives if that trade-off ever needs to change for a given run. `scrapeAny`'s open-web scope (above) extends this same kind of acceptance to sites with no individual review at all.
+
+**(New) Form prefill — apply-assist:** each output package includes `formFields` (a flat label→value map) alongside the narrative application summary, specifically for `orchestrator/scripts/apply-assist.mjs` — a local script the human runs themselves against their own saved session, which opens the link, fills the form, and stops. Confirmed as **fill-only, permanently** during planning: no code path in it clicks submit; an opt-in auto-submit mode is a separate, explicit future decision, not something to add quietly. This doesn't loosen the orchestrator's own "never touches a form" rule — the script runs locally, triggered by the human, not by the orchestrator's unattended pipeline.
 
 ---
 
@@ -358,7 +369,11 @@ agent-ops/
 │   │   │   ├── implement_ticket.ts        # invokes Claude Code via gateway
 │   │   │   ├── quality_gate.ts            # invokes Qodo
 │   │   │   ├── open_pr.ts
-│   │   │   ├── run_personal_pipeline.ts   # (New, §5.3/§6) executes personal projects directly — no repo/CI runner to dispatch to, so the orchestrator itself loads the skill and calls the gateway
+│   │   │   ├── run_personal_pipeline.ts   # (New, §5.3/§6) executes personal projects directly — no repo/CI runner to dispatch to, so the orchestrator itself loads the skill, discovers postings, and calls the gateway per candidate
+│   │   │   ├── criteria.ts                # (New, §5.3) JobCriteria matching for scrapeAll/scrapeAny candidates — deliberately forgiving toward missing data
+│   │   │   ├── discovery/                 # (New, §5.3) how postings are found, separate from sourcing/ (how a known posting's content is fetched)
+│   │   │   │   ├── scrapeAll.ts               # crawl one given site's listings, model-assisted candidate extraction (fixed selectors can't generalize per site)
+│   │   │   │   └── scrapeAny.ts               # open-web search, no site allowlist (confirmed)
 │   │   │   ├── sourcing/                  # (New) per-sourcing-method scripts, selected by a personal project's sourcing_method
 │   │   │   │   ├── manual.ts
 │   │   │   │   ├── api.ts
@@ -368,8 +383,11 @@ agent-ops/
 │   │   │   ├── github.ts              # GitHub App JWT → installation token exchange (Revised); also getFileContents, reading skill files remotely since skills/ isn't in the orchestrator's own Docker build context (New)
 │   │   │   ├── litellm.ts             # (New) direct gateway calls for the personal pipeline — the dev pipeline calls the gateway from inside GitHub Actions instead, this is the orchestrator-process equivalent
 │   │   │   ├── pdf.ts                 # (New) renders drafted text to PDF for generated_pdf document sources
+│   │   │   ├── the_store.ts           # (New, §8) appends completed job-application rows to a CSV in a separate repo ("the-store") — gated, skipped with a warning if unconfigured
 │   │   │   ├── plane.ts
 │   │   │   └── mcp_server.ts
+│   │   ├── scripts/
+│   │   │   └── apply-assist.mjs       # (New) local companion prefill script — NOT part of the deployed service; lives here (not under skills/) so Node's ESM resolver finds `playwright` via the normal node_modules walk-up
 │   │   └── registry/
 │   │       ├── load.ts                    # (New) local-fs registry loader — reads the yaml below, bundled into the deployed image at build time
 │   │       ├── development/
@@ -389,10 +407,11 @@ agent-ops/
 │   └── personal/                        # (Revised) no shared tier of their own — each personal project's skill folder is fully self-contained, including its sourcing/ sub-skills
 │       ├── resume-job-applier/
 │       │   ├── SKILL.md
-│       │   └── sourcing/                # (New) one skill per configurable sourcing_method
-│       │       ├── manual/SKILL.md
-│       │       ├── api/SKILL.md
-│       │       └── scraping/SKILL.md    # default — see SKILL.md for the accepted-ToS-risk note
+│       │   ├── sourcing/                # (New) one skill per configurable sourcing_method
+│       │   │   ├── manual/SKILL.md
+│       │   │   ├── api/SKILL.md
+│       │   │   └── scraping/SKILL.md    # default — see SKILL.md for the accepted-ToS-risk note
+│       │   └── apply-assist/SKILL.md    # (New) documents orchestrator/scripts/apply-assist.mjs — fill-only, permanently (confirmed)
 │       ├── trip-planning/SKILL.md
 │       ├── property-sourcing/SKILL.md
 │       └── asset-purchase/SKILL.md
@@ -481,7 +500,8 @@ This turns what were Phase 8/9 manual steps ("write a new project skill folder,"
 - **Model gateway:** Gemini is the only configured model for now (`planning` and `implementation` aliases both point at a Gemini model in `litellm/config.yaml`). Anthropic key to be added later — when it lands, repoint those aliases at Claude rather than standing up new ones, so nothing else in the system needs to change.
 - **(Re-revised) Budget alert — live:** GCP's native Billing → Budgets & alerts (budget named "Agent-Ops", scoped to `agent-ops-501120`) rather than LiteLLM's own DB-backed alerting — set up before real pipeline traffic ran, per the original Phase 1 goal.
 - **Quality gate:** self-hosted `PR-Agent` (`The-PR-Agent/pr-agent`) for review + self-hosted `qodo-cover` for test generation/coverage, both pointed at the LiteLLM gateway. Replaces the hosted Qodo product referenced earlier in this doc, with the fallback decision point in §4.4. **Not yet wired into the reusable workflow** — only `qodo-cover` is in `dev-pipeline-reusable.yml` today; the PR-Agent step is still an open Phase 4 task.
-- **Personal project #1:** resume builder + job applier. Each of resume and cover letter is independently either freshly generated as a tailored **PDF** or pointed at an existing Google Drive doc (`resume_source`/`cover_letter_source`, registry/personal/projects.yaml). Targets **LinkedIn only for now**, with other job sites added later on request. The pipeline never submits on its own; it prepares the documents and application content, and a human clicks submit in their own logged-in browser session. **(Revised)** sourcing is now configurable (`sourcing_method`: `scraping` | `api` | `manual`), defaulting to `scraping` — a deliberate, accepted deviation from the ToS caution originally noted in §5.3, not a resolution of it. See `skills/personal/resume-job-applier/sourcing/scraping/SKILL.md` for the explicit risk note.
+- **Personal project #1:** resume builder + job applier. Each of resume and cover letter is independently either freshly generated as a tailored **PDF** or pointed at an existing Google Drive doc (`resume_source`/`cover_letter_source`, registry/personal/projects.yaml). Targets **LinkedIn only for now**, with other job sites added later on request. The orchestrator's own pipeline never submits or fills a form on its own initiative; it prepares the documents, application content, and `formFields`. **(Revised)** sourcing is now configurable (`sourcing_method`: `scraping` | `api` | `manual`), defaulting to `scraping` — a deliberate, accepted deviation from the ToS caution originally noted in §5.3, not a resolution of it. See `skills/personal/resume-job-applier/sourcing/scraping/SKILL.md` for the explicit risk note. **(New)** discovery is a separate, second axis (`strategy`: `scrapeOne` | `scrapeAll` | `scrapeAny`, capped at `max_results` per run) — `scrapeAny` searches the open web with no site allowlist, confirmed and deliberate. **(New)** the human can locally prefill (never auto-submit) a posting's actual form via `orchestrator/scripts/apply-assist.mjs` when they open the link themselves.
+- **(New) the-store:** completed job applications are appended as CSV rows to a separate repo, `the-store` (`projects/job-applications/job-app-results.csv`) — application *data*, kept out of `agent-ops`, which is pipeline *config*. **Blocked as of this note:** the repo doesn't exist yet, and this session's GitHub integration can't create repositories (`403 Resource not accessible by integration`) — a human needs to create `HeyItsChloe/the-store` (private) directly, then it can be added to a session's scope and the GitHub App installed on it. Until then, `THE_STORE_*` env vars are unset and `the_store.ts`'s append is skipped with a warning log rather than failing the pipeline.
 - **(Revised) GitHub access — live:** a custom **GitHub App** (`pipeline-orchestrator-opps`, not a PAT) with Issues/PRs/Contents permissions. Installed as **two separate installations**: one on the `heyitschloe` personal account, one on the `11thandOrange` organization (covering `BusyBuddy_v2`) — each has its own installation ID, since GitHub App installations are per-account/org, not global to the App. The App's ID and private key live in GitHub Secrets, not in chat or any file in this repo.
 - **(Revised) Notifications:** chat only, permanently — Bird is not part of this system (§5.2).
 - **(Revised) Orchestrator endpoint auth — verified:** `/trigger`, `/webhook/mcp`, and `/webhook/github` all require a shared-secret or token check from the moment they're stood up in Phase 2. Confirmed working post-deploy: unauthenticated requests to `/trigger` and `/webhook/mcp` return `401`; authenticated requests pass through to Zod validation. `/webhook/github` (GitHub's own HMAC signature, not the shared secret) still needs the GitHub App's Webhook URL pointed at the live orchestrator before it can be exercised for real.
