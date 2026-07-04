@@ -56,6 +56,7 @@ export interface DocumentResult {
 }
 
 export interface ApplicationPackage {
+  status: "success";
   resume: DocumentResult;
   coverLetter: DocumentResult;
   applicationSummary: string;
@@ -69,7 +70,21 @@ export interface ApplicationPackage {
   company?: string;
 }
 
-export type PersonalPipelineResult = ApplicationPackage[];
+// One bad candidate in a scrapeAll/scrapeAny batch used to abort the whole
+// run and lose every already-drafted result — found during a later
+// confirmation pass, not by design. Each candidate now fails independently;
+// a partial batch returns whatever succeeded plus a failure entry for
+// whatever didn't, instead of a single opaque 502 for the whole request.
+export interface ApplicationFailure {
+  status: "failed";
+  sourceUrl?: string;
+  title?: string;
+  company?: string;
+  error: string;
+}
+
+export type PersonalPipelineResultItem = ApplicationPackage | ApplicationFailure;
+export type PersonalPipelineResult = PersonalPipelineResultItem[];
 
 export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: PersonalPipelineRequest): Promise<PersonalPipelineResult> {
   const log = logger.withContext({ correlationId: req.correlationId, project: req.project });
@@ -105,61 +120,66 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
   const needsResume = resumeSource.mode === "generated_pdf";
   const needsCoverLetter = coverLetterSource.mode === "generated_pdf";
 
-  const results: ApplicationPackage[] = [];
+  const results: PersonalPipelineResultItem[] = [];
   for (const candidate of candidates) {
-    const sourceRequest = candidate?.url ?? req.request;
-    const posting = await gatherPosting(deps, sourcingMethod, { request: sourceRequest });
+    try {
+      const sourceRequest = candidate?.url ?? req.request;
+      const posting = await gatherPosting(deps, sourcingMethod, { request: sourceRequest });
 
-    const draft = await draftPackage(deps.liteLLM, entry.model_profile, skillContent, sourcingSkillContent, posting.postingText, needsResume, needsCoverLetter);
+      const draft = await draftPackage(deps.liteLLM, entry.model_profile, skillContent, sourcingSkillContent, posting.postingText, needsResume, needsCoverLetter);
 
-    const resume: DocumentResult =
-      resumeSource.mode === "gdrive_link"
-        ? { mode: "gdrive_link", gdriveLink: resumeSource.gdrive_link }
-        : { mode: "generated_pdf", pdfBase64: (await renderTextToPdf("Resume", draft.resume ?? "")).toString("base64") };
+      const resume: DocumentResult =
+        resumeSource.mode === "gdrive_link"
+          ? { mode: "gdrive_link", gdriveLink: resumeSource.gdrive_link }
+          : { mode: "generated_pdf", pdfBase64: (await renderTextToPdf("Resume", draft.resume ?? "")).toString("base64") };
 
-    const coverLetter: DocumentResult =
-      coverLetterSource.mode === "gdrive_link"
-        ? { mode: "gdrive_link", gdriveLink: coverLetterSource.gdrive_link }
-        : { mode: "generated_pdf", pdfBase64: (await renderTextToPdf("Cover Letter", draft.coverLetter ?? "")).toString("base64") };
+      const coverLetter: DocumentResult =
+        coverLetterSource.mode === "gdrive_link"
+          ? { mode: "gdrive_link", gdriveLink: coverLetterSource.gdrive_link }
+          : { mode: "generated_pdf", pdfBase64: (await renderTextToPdf("Cover Letter", draft.coverLetter ?? "")).toString("base64") };
 
-    const sourceUrl = posting.sourceUrl ?? candidate?.url;
-    const pkg: ApplicationPackage = {
-      resume,
-      coverLetter,
-      applicationSummary: draft.applicationSummary,
-      formFields: draft.formFields,
-      sourceUrl,
-      title: candidate?.title,
-      company: candidate?.company,
-    };
-    results.push(pkg);
+      const sourceUrl = posting.sourceUrl ?? candidate?.url;
+      results.push({
+        status: "success",
+        resume,
+        coverLetter,
+        applicationSummary: draft.applicationSummary,
+        formFields: draft.formFields,
+        sourceUrl,
+        title: candidate?.title,
+        company: candidate?.company,
+      });
 
-    if (deps.theStore) {
-      try {
-        await appendJobApplicationRow(deps.githubApp, deps.installationId, deps.theStore, {
-          dateApplied: new Date().toISOString().slice(0, 10),
-          company: candidate?.company ?? "",
-          jobTitle: candidate?.title ?? "",
-          location: candidate?.location ?? "",
-          remote: candidate?.remote === undefined ? "" : String(candidate.remote),
-          salary: candidate?.salary ?? "",
-          sourceUrl: sourceUrl ?? "",
-          sourceSite: sourceUrl ? new URL(sourceUrl).hostname : "",
-          strategy,
-          sourcingMethod,
-          resumeMode: resumeSource.mode,
-          coverLetterMode: coverLetterSource.mode,
-          correlationId: req.correlationId,
-          applicationSummary: draft.applicationSummary,
-          formFields: JSON.stringify(draft.formFields),
-          resumeContent: resumeSource.mode === "gdrive_link" ? resumeSource.gdrive_link : (draft.resume ?? ""),
-          coverLetterContent: coverLetterSource.mode === "gdrive_link" ? coverLetterSource.gdrive_link : (draft.coverLetter ?? ""),
-        });
-      } catch (err) {
-        log.warn("failed to append job-application row to the-store", { error: String(err) });
+      if (deps.theStore) {
+        try {
+          await appendJobApplicationRow(deps.githubApp, deps.installationId, deps.theStore, {
+            dateApplied: new Date().toISOString().slice(0, 10),
+            company: candidate?.company ?? "",
+            jobTitle: candidate?.title ?? "",
+            location: candidate?.location ?? "",
+            remote: candidate?.remote === undefined ? "" : String(candidate.remote),
+            salary: candidate?.salary ?? "",
+            sourceUrl: sourceUrl ?? "",
+            sourceSite: sourceUrl ? new URL(sourceUrl).hostname : "",
+            strategy,
+            sourcingMethod,
+            resumeMode: resumeSource.mode,
+            coverLetterMode: coverLetterSource.mode,
+            correlationId: req.correlationId,
+            applicationSummary: draft.applicationSummary,
+            formFields: JSON.stringify(draft.formFields),
+            resumeContent: resumeSource.mode === "gdrive_link" ? resumeSource.gdrive_link : (draft.resume ?? ""),
+            coverLetterContent: coverLetterSource.mode === "gdrive_link" ? coverLetterSource.gdrive_link : (draft.coverLetter ?? ""),
+          });
+        } catch (err) {
+          log.warn("failed to append job-application row to the-store", { error: String(err) });
+        }
+      } else {
+        log.warn("the-store not configured — skipping CSV append");
       }
-    } else {
-      log.warn("the-store not configured — skipping CSV append");
+    } catch (err) {
+      log.error("candidate failed — continuing with the rest of the batch", { error: String(err), sourceUrl: candidate?.url, title: candidate?.title });
+      results.push({ status: "failed", sourceUrl: candidate?.url, title: candidate?.title, company: candidate?.company, error: String(err) });
     }
   }
 
