@@ -52,6 +52,8 @@ An earlier version of this skill required `manual`/`api` only and forbade scrapi
 
 `criteria` (title, location, remote, salary range, skills, keywords, websites, date posted, company, whitelist/blacklist) filters candidates found by `scrapeAll`/`scrapeAny` — matching is deliberately forgiving (see `orchestrator/src/jobs/criteria.ts`): a candidate missing data for a criterion isn't excluded on that criterion alone, since scraped/searched metadata is often incomplete. Only blacklist matches and clear contradictions exclude a candidate.
 
+**(New) `sourcing_method: manual` only works with `strategy: scrapeOne`, and the pipeline now rejects the combination outright.** `manual` is pure passthrough — it returns whatever it's given *as* the posting text, without fetching anything. `scrapeAll`/`scrapeAny` hand it a bare candidate URL (found by discovery, not typed by a human), which `manual` would just hand back as if it were the posting's content. `run_personal_pipeline.ts` checks this combination before doing any other work and throws immediately rather than silently drafting from a URL string.
+
 ## Output package
 
 For each job application, produce:

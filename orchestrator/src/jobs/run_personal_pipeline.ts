@@ -101,6 +101,18 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
   const strategy = req.strategy ?? entry.strategy;
   const maxResults = req.maxResults ?? entry.max_results;
 
+  // manual sourcing is pure passthrough — it returns whatever it's given AS
+  // the posting text, without fetching anything. scrapeAll/scrapeAny hand
+  // gatherPosting a bare candidate URL (found by discovery, not a human),
+  // so pairing manual with either would draft from a literal URL string
+  // instead of real posting content. manual only makes sense with scrapeOne,
+  // where a human is the one supplying real pasted text.
+  if (sourcingMethod === "manual" && strategy !== "scrapeOne") {
+    throw new Error(
+      `personal pipeline: sourcing_method 'manual' only works with strategy 'scrapeOne' — '${strategy}' produces candidate URLs for gatherPosting to fetch, but 'manual' never fetches anything, it just returns whatever it's given as the posting text itself.`,
+    );
+  }
+
   const token = await getInstallationToken(deps.githubApp, deps.installationId);
   // Project skill + selected sourcing skill only — never skills/shared/,
   // which is dev-pipeline-only content (§6, and the personal pipeline has
