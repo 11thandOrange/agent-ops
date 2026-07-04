@@ -36,11 +36,14 @@ const config = {
     process.env.JOB_API_BASE_URL && process.env.JOB_API_KEY
       ? { baseUrl: process.env.JOB_API_BASE_URL, apiKey: process.env.JOB_API_KEY }
       : undefined,
-  scrapingSourcing: process.env.LINKEDIN_STORAGE_STATE_PATH ? { storageStatePath: process.env.LINKEDIN_STORAGE_STATE_PATH } : undefined,
-  // scrapeAll reuses the same saved session as sourcing_method: scraping
-  // when the target listings page needs login — optional, since not every
-  // site being crawled requires it.
-  scrapeAllSourcing: { storageStatePath: process.env.LINKEDIN_STORAGE_STATE_PATH },
+  // One directory of per-hostname session files (integrations/site_sessions.ts)
+  // shared by both sourcing_method: scraping (per-posting fetch) and the
+  // scrapeAll strategy (crawls whatever site it's given) — replaces an
+  // earlier design mistake where a single LINKEDIN_STORAGE_STATE_PATH env
+  // var was reused as scrapeAll's config, even though scrapeAll is
+  // genuinely multi-site by design. Optional: many sites need no saved
+  // session at all, resolved per-hostname at the point of use.
+  siteSessions: process.env.SITE_SESSIONS_DIR ? { sessionsDir: process.env.SITE_SESSIONS_DIR } : undefined,
   scrapeAnySourcing:
     process.env.WEB_SEARCH_API_URL && process.env.WEB_SEARCH_API_KEY
       ? { searchApiUrl: process.env.WEB_SEARCH_API_URL, searchApiKey: process.env.WEB_SEARCH_API_KEY }
@@ -63,8 +66,8 @@ const dispatchDeps = { githubApp: config.githubApp, installationId: config.insta
 const personalPipelineDeps = {
   liteLLM: config.liteLLM,
   apiSourcing: config.jobApiSourcing,
-  scrapingSourcing: config.scrapingSourcing,
-  scrapeAllSourcing: config.scrapeAllSourcing,
+  scrapingSourcing: config.siteSessions,
+  scrapeAllSourcing: config.siteSessions,
   scrapeAnySourcing: config.scrapeAnySourcing,
   theStore: config.theStore,
 };

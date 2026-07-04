@@ -176,7 +176,9 @@ async function discoverCandidates(
     case "scrapeOne":
       return [undefined];
     case "scrapeAll":
-      if (!deps.scrapeAllSourcing) throw new Error("personal pipeline: strategy 'scrapeAll' requires scrapeAll discovery to be configured");
+      // No hard requirement on deps.scrapeAllSourcing — many sites need no
+      // saved session at all; resolveStorageState degrades to unauthenticated
+      // per-site when either the config or that hostname's file is absent.
       return scrapeAllDiscovery.discover(deps.scrapeAllSourcing, deps.liteLLM, modelAlias, req.request, req.criteria, maxResults);
     case "scrapeAny":
       if (!deps.scrapeAnySourcing) throw new Error("personal pipeline: strategy 'scrapeAny' requires WEB_SEARCH_API_URL/WEB_SEARCH_API_KEY to be configured");
@@ -192,7 +194,7 @@ async function gatherPosting(deps: PersonalPipelineDeps, method: SourcingMethod,
       if (!deps.apiSourcing) throw new Error("personal pipeline: sourcing_method 'api' requires JOB_API_BASE_URL/JOB_API_KEY to be configured");
       return apiSourcing.gatherPosting(deps.apiSourcing, input);
     case "scraping":
-      if (!deps.scrapingSourcing) throw new Error("personal pipeline: sourcing_method 'scraping' requires LINKEDIN_STORAGE_STATE_PATH to be configured");
+      if (!deps.scrapingSourcing) throw new Error("personal pipeline: sourcing_method 'scraping' requires SITE_SESSIONS_DIR to be configured");
       return scrapingSourcing.gatherPosting(deps.scrapingSourcing, input);
   }
 }

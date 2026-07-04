@@ -14,7 +14,7 @@ The pipeline never moves from planning to implementation without an explicit hum
 - Implementation only starts when one of these is true for that issue:
   - the `approved` label is applied, **or**
   - an allowlisted commenter posts `@dev-agent implement` (the workflow and the orchestrator both check the commenter's GitHub login against an allowlist before honoring this — strategy doc §4.1), **or**
-  - a chat/curl request explicitly requests the `implement` action for that issue (via `run_project_pipeline` or `POST /trigger`).
+  - a chat/curl request explicitly requests the `implement` action for that issue (via `run_development_project_pipeline` or `POST /trigger`).
 - There is no other path to implementation. If the approach doc's sub-issues need to change after `approach-ready`, that's a new `plan` run, not something implementation should improvise around.
 
 ## What "approved" means for the reviewer

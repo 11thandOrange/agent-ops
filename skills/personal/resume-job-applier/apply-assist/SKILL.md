@@ -21,12 +21,12 @@ The script itself lives at `orchestrator/scripts/apply-assist.mjs`, not under th
 node scripts/apply-assist.mjs \
   --url "<job posting URL>" \
   --data ./application-fields.json \
-  --storage-state "$LINKEDIN_STORAGE_STATE_PATH" \
+  --sessions-dir "$SITE_SESSIONS_DIR" \
   --litellm-url "$LITELLM_PROXY_URL" --litellm-key "$LITELLM_VIRTUAL_KEY" --model planning
 ```
 
 - `--data` — a JSON file containing the `formFields` object from a personal-pipeline result (e.g. save it from the chat response or a `the-store` CSV row's linked data).
-- `--storage-state` — optional; only needed if the application page requires your logged-in session to load correctly (e.g. LinkedIn Easy Apply).
+- `--sessions-dir` — optional; a directory of saved Playwright storage-state files, one per site, named `<hostname>.json` (e.g. `linkedin.com.json`) — resolved automatically by `--url`'s hostname. **(Revised)** this used to be a single `--storage-state <path>` pointing at one fixed (LinkedIn) session; that didn't generalize once more than one site was in scope. `--storage-state <path>` still works too, if you'd rather point at one file explicitly for a single run — it takes priority over `--sessions-dir` if both are given.
 - `--litellm-url`/`--litellm-key`/`--model` — optional; enables an LLM-assisted fallback for fields the heuristic matcher can't confidently pair up. Runs heuristic-only if omitted.
 
 ## How field matching works, and its real limits

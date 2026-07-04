@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Local companion prefill script — NOT part of the deployed orchestrator.
 // You run this yourself, on your own machine, against your own saved
-// LinkedIn session, to open a job link with its form fields pre-filled
-// from a completed application package. It NEVER submits anything: it
+// session for whichever site the job link belongs to (not LinkedIn-only —
+// see --sessions-dir), to open it with its form fields pre-filled from a
+// completed application package. It NEVER submits anything: it
 // fills fields and then waits for you to review and click submit yourself
 // in the same visible browser window. There is no flag, mode, or code path
 // in this file that clicks a submit-like button — that boundary is
@@ -16,7 +17,7 @@
 //   node scripts/apply-assist.mjs \
 //     --url "https://www.linkedin.com/jobs/view/12345" \
 //     --data ./application-fields.json \
-//     --storage-state "$LINKEDIN_STORAGE_STATE_PATH"
+//     --sessions-dir "$SITE_SESSIONS_DIR"
 //
 // --data points at a JSON file holding the `formFields` object from a
 // personal-pipeline ApplicationPackage: a flat { "Label": "value" } map.
@@ -29,8 +30,23 @@
 // session was available there). Expect to tune the matching threshold or
 // add site-specific hints after trying it against a real form.
 import { chromium } from "playwright";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import readline from "node:readline";
+
+// Resolves whichever session applies for --url: an explicit --storage-state
+// wins; otherwise --sessions-dir is checked for "<hostname>.json" (same
+// convention as orchestrator/src/integrations/site_sessions.ts, duplicated
+// here rather than imported since this script runs standalone, outside the
+// compiled orchestrator package). Falls back to unauthenticated if neither
+// resolves anything — not every site needs a saved session.
+function resolveStorageState(args, url) {
+  if (args["storage-state"]) return args["storage-state"];
+  if (!args["sessions-dir"]) return undefined;
+  const hostname = new URL(url).hostname.replace(/^www\./, "");
+  const candidate = path.join(args["sessions-dir"], `${hostname}.json`);
+  return existsSync(candidate) ? candidate : undefined;
+}
 
 function parseArgs(argv) {
   const args = {};
@@ -114,14 +130,18 @@ async function llmAssistedMatch(litellmUrl, litellmKey, model, unmatchedLabels, 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.url || !args.data) {
-    console.error("Usage: node scripts/apply-assist.mjs --url <jobUrl> --data <fields.json> [--storage-state <path>] [--litellm-url <url>] [--litellm-key <key>] [--model planning]");
+    console.error(
+      "Usage: node scripts/apply-assist.mjs --url <jobUrl> --data <fields.json> " +
+        "[--storage-state <path> | --sessions-dir <dir>] [--litellm-url <url>] [--litellm-key <key>] [--model planning]",
+    );
     process.exit(1);
   }
   const fieldData = JSON.parse(readFileSync(args.data, "utf-8"));
   const dataKeys = Object.keys(fieldData);
+  const storageState = resolveStorageState(args, args.url);
 
   const browser = await chromium.launch({ headless: false });
-  const context = await browser.newContext(args["storage-state"] ? { storageState: args["storage-state"] } : {});
+  const context = await browser.newContext(storageState ? { storageState } : {});
   const page = await context.newPage();
   await page.goto(args.url, { waitUntil: "domcontentloaded" });
 

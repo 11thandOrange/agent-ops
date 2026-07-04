@@ -6,15 +6,20 @@
 // actual job postings, rather than guessing selectors per site.
 import { chromium } from "playwright";
 import { chatCompletion, type LiteLLMConfig } from "../../integrations/litellm.js";
+import { resolveStorageState, type SiteSessionsConfig } from "../../integrations/site_sessions.js";
 import { matchesCriteria } from "../criteria.js";
 import type { JobCriteria, PostingCandidate } from "../../types.js";
 
-export interface ScrapeAllConfig {
-  storageStatePath?: string; // optional — only needed if the target site requires login to see listings
-}
+// scrapeAll crawls whatever site URL it's given — genuinely multi-site by
+// design (unlike sourcing/scraping.ts, which is scoped to LinkedIn by the
+// resume-job-applier project's own choice, not by this module). Session
+// resolution is by hostname (integrations/site_sessions.ts), not a single
+// fixed path — an earlier version of this wrongly reused a LinkedIn-only
+// env var here, which made no sense for a multi-site crawler.
+export type ScrapeAllConfig = SiteSessionsConfig;
 
 export async function discover(
-  config: ScrapeAllConfig,
+  config: ScrapeAllConfig | undefined,
   liteLLM: LiteLLMConfig,
   modelAlias: string,
   siteUrl: string,
@@ -25,7 +30,8 @@ export async function discover(
   let pageText: string;
   let links: Array<{ href: string; text: string }>;
   try {
-    const context = await browser.newContext(config.storageStatePath ? { storageState: config.storageStatePath } : {});
+    const storageState = resolveStorageState(config, siteUrl);
+    const context = await browser.newContext(storageState ? { storageState } : {});
     const page = await context.newPage();
     await page.goto(siteUrl, { waitUntil: "domcontentloaded" });
     pageText = (await page.locator("body").innerText()).slice(0, 12_000); // bound prompt size
