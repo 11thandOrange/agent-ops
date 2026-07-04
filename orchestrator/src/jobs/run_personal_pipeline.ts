@@ -150,6 +150,10 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
           resumeMode: resumeSource.mode,
           coverLetterMode: coverLetterSource.mode,
           correlationId: req.correlationId,
+          applicationSummary: draft.applicationSummary,
+          formFields: JSON.stringify(draft.formFields),
+          resumeContent: resumeSource.mode === "gdrive_link" ? resumeSource.gdrive_link : (draft.resume ?? ""),
+          coverLetterContent: coverLetterSource.mode === "gdrive_link" ? coverLetterSource.gdrive_link : (draft.coverLetter ?? ""),
         });
       } catch (err) {
         log.warn("failed to append job-application row to the-store", { error: String(err) });

@@ -71,7 +71,7 @@ Return the package(s) in the same chat thread that made the request — there is
 
 ## Storage — the-store
 
-**(New)** every completed application is appended as a row to a CSV in a separate repo, `the-store` (`projects/job-applications/job-app-results.csv`), via `orchestrator/src/integrations/the_store.ts` — application *data* doesn't belong in `agent-ops`, which is pipeline *config*. This is gated: if `the-store` isn't configured (it didn't exist yet when this was built), the append is skipped with a warning log rather than failing the whole run.
+**(New)** every completed application is appended as a row to a CSV in a separate repo, `the-store` (`projects/job-applications/job-app-results.csv`), via `orchestrator/src/integrations/the_store.ts` — application *data* doesn't belong in `agent-ops`, which is pipeline *config*. **(Revised)** the row stores full content, not just tracking metadata — confirmed explicitly rather than left as an assumption: alongside company/title/location/dates/etc., it includes `applicationSummary`, `formFields` (JSON-encoded), and the resume/cover-letter text itself (or the configured Drive link, for whichever document is `gdrive_link`). This is gated: if `the-store` isn't configured (it didn't exist yet when this was built), the append is skipped with a warning log rather than failing the whole run.
 
 ## Model
 

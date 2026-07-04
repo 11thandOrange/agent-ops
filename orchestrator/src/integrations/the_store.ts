@@ -27,6 +27,16 @@ export interface JobApplicationRow {
   resumeMode: string;
   coverLetterMode: string;
   correlationId: string;
+  // (New) full content, not just metadata — confirmed explicitly: this CSV
+  // is meant to be a complete record, not just a tracking log. resumeContent/
+  // coverLetterContent hold the drafted text for generated_pdf documents, or
+  // the configured Drive link for gdrive_link ones (there's no "drafted
+  // text" for those — the link IS the content). formFields is JSON-encoded
+  // since CSV cells are flat strings, not nested structures.
+  applicationSummary: string;
+  formFields: string;
+  resumeContent: string;
+  coverLetterContent: string;
 }
 
 const HEADER = [
@@ -43,6 +53,10 @@ const HEADER = [
   "resume_mode",
   "cover_letter_mode",
   "correlation_id",
+  "application_summary",
+  "form_fields",
+  "resume_content",
+  "cover_letter_content",
 ];
 
 function csvEscape(value: string): string {
@@ -64,6 +78,10 @@ function rowToCsvLine(row: JobApplicationRow): string {
     row.resumeMode,
     row.coverLetterMode,
     row.correlationId,
+    row.applicationSummary,
+    row.formFields,
+    row.resumeContent,
+    row.coverLetterContent,
   ]
     .map(csvEscape)
     .join(",");
