@@ -5,6 +5,7 @@
 // the model gateway directly, then returns a package for the chat thread —
 // there is no separate notification channel to deliver it through.
 import { chatCompletion, type LiteLLMConfig } from "../integrations/litellm.js";
+import { parseModelJson } from "../integrations/llmJson.js";
 import { getFileContents, getInstallationToken, type GitHubAppConfig } from "../integrations/github.js";
 import { renderTextToPdf } from "../integrations/pdf.js";
 import { appendJobApplicationRow, type TheStoreConfig } from "../integrations/the_store.js";
@@ -283,7 +284,7 @@ async function draftPackage(
 
   let parsed: Partial<Draft>;
   try {
-    parsed = JSON.parse(raw) as Partial<Draft>;
+    parsed = parseModelJson<Partial<Draft>>(raw);
   } catch {
     throw new Error(`personal pipeline: model response was not valid JSON: ${raw.slice(0, 200)}`);
   }

@@ -6,6 +6,7 @@
 // rather than trying to parse Anthropic's raw web_search_tool_result blocks
 // ourselves.
 import { webSearchCompletion, type AnthropicConfig } from "../../../integrations/anthropic.js";
+import { parseModelJson } from "../../../integrations/llmJson.js";
 import type { PostingCandidate } from "../../../types.js";
 
 export type ClaudeWebSearchConfig = AnthropicConfig;
@@ -23,7 +24,7 @@ export async function search(config: ClaudeWebSearchConfig, query: string, maxRe
 
   let candidates: PostingCandidate[];
   try {
-    candidates = JSON.parse(raw) as PostingCandidate[];
+    candidates = parseModelJson<PostingCandidate[]>(raw);
   } catch {
     throw new Error(`claude_web_search discovery: model response was not valid JSON: ${raw.slice(0, 200)}`);
   }

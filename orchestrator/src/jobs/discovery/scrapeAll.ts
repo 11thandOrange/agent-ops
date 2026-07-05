@@ -6,6 +6,7 @@
 // actual job postings, rather than guessing selectors per site.
 import { chromium } from "playwright";
 import { chatCompletion, type LiteLLMConfig } from "../../integrations/litellm.js";
+import { parseModelJson } from "../../integrations/llmJson.js";
 import { resolveStorageState, type SiteSessionsConfig } from "../../integrations/site_sessions.js";
 import { matchesCriteria } from "../criteria.js";
 import type { JobCriteria, PostingCandidate } from "../../types.js";
@@ -64,7 +65,7 @@ export async function discover(
 
   let candidates: PostingCandidate[];
   try {
-    candidates = JSON.parse(raw) as PostingCandidate[];
+    candidates = parseModelJson<PostingCandidate[]>(raw);
   } catch {
     throw new Error(`scrapeAll discovery: model response was not valid JSON: ${raw.slice(0, 200)}`);
   }
