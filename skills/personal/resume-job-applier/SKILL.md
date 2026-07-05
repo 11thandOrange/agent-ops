@@ -11,7 +11,7 @@ Pilot personal project (roadmap Phase 7). `type: personal` in `registry/personal
 
 This is the most important guardrail in this skill and overrides anything else that seems efficient in the moment: **the orchestrator's pipeline never submits a job application, and never fills a form on its own initiative.** It ends with a reviewable package; a human clicks submit in their own logged-in LinkedIn session. Do not implement, suggest, or leave a code path in `run_personal_pipeline.ts` (or anything the orchestrator runs unattended) that could auto-submit, even as a "convenience" or "optional" flag. This rule is independent of the sourcing method below — no sourcing configuration changes it.
 
-**(New) The apply-assist companion script (below) is a deliberate, narrow exception to "never fills a form" — not to "never submits."** It runs locally, triggered by the human opening a link themselves, and only ever fills fields — it has no submit code path at all, permanently, as confirmed during planning. The orchestrator itself still never touches a form.
+**(New) The job-application-form-prefill companion script (below) is a deliberate, narrow exception to "never fills a form" — not to "never submits."** It runs locally, triggered by the human opening a link themselves, and only ever fills fields — it has no submit code path at all, permanently, as confirmed during planning. The orchestrator itself still never touches a form.
 
 ## Scope
 
@@ -72,7 +72,7 @@ For each job application, produce:
 1. **Resume** — per `resume_source`: either a posting-tailored PDF, or a pointer to the configured Google Drive link.
 2. **Cover letter** — per `cover_letter_source`: same choice, independent of the resume's.
 3. **Application summary** — a human-readable narrative of the fields a LinkedIn application would ask for, filled in but clearly marked unsubmitted, so the human can copy/paste or verify before clicking submit themselves. Always produced, regardless of the document source modes above.
-4. **(New) `formFields`** — a flat, machine-consumable `{label: value}` map of the same information as the application summary, but keyed to match actual application-form field labels rather than prose. This exists specifically for the apply-assist companion script below — the narrative summary is for the human to *read*, `formFields` is what a script *fills a form with*.
+4. **(New) `formFields`** — a flat, machine-consumable `{label: value}` map of the same information as the application summary, but keyed to match actual application-form field labels rather than prose. This exists specifically for the job-application-form-prefill companion script below — the narrative summary is for the human to *read*, `formFields` is what a script *fills a form with*.
 
 `scrapeAll`/`scrapeAny` return an array of these packages (one per matched posting), not a single package — `scrapeOne` returns an array of exactly one.
 
@@ -80,7 +80,7 @@ Return the package(s) in the same chat thread that made the request — there is
 
 ## Apply-assist — prefilling the form when you open the link
 
-**(New)** `apply-assist/SKILL.md` documents a local companion script (`orchestrator/scripts/apply-assist.mjs`) you run yourself: it opens a job link in a visible browser using your saved session, fills the form from a package's `formFields`, and stops — you review and submit yourself in that same window. It is **fill-only, permanently, as confirmed during planning** — no flag or future mode should make it submit; revisiting that is a separate, explicit future decision, not something to build quietly into this script.
+**(New)** `job-application-form-prefill/SKILL.md` documents a local companion script (`orchestrator/scripts/job-application-form-prefill.mjs`) you run yourself: it opens a job link in a visible browser using your saved session, fills the form from a package's `formFields`, and stops — you review and submit yourself in that same window. It is **fill-only, permanently, as confirmed during planning** — no flag or future mode should make it submit; revisiting that is a separate, explicit future decision, not something to build quietly into this script.
 
 ## Storage — the-store
 
@@ -92,8 +92,8 @@ Uses the `planning` model alias (Gemini for now, repointed to Claude when the An
 
 ## Guardrails
 
-- The orchestrator's own pipeline (`run_personal_pipeline.ts` and anything it calls unattended) never fills in or submits a LinkedIn form, even partially, beyond what's needed to produce the reviewable summary and `formFields`. **(Revised)** filling *is* now done, but only by `apply-assist` — a script the human runs themselves, locally, triggered by opening the link — never by the orchestrator on its own initiative, and never as a submit.
+- The orchestrator's own pipeline (`run_personal_pipeline.ts` and anything it calls unattended) never fills in or submits a LinkedIn form, even partially, beyond what's needed to produce the reviewable summary and `formFields`. **(Revised)** filling *is* now done, but only by `job-application-form-prefill` — a script the human runs themselves, locally, triggered by opening the link — never by the orchestrator on its own initiative, and never as a submit.
 - Don't invent details about the applicant's experience — only draft from information the human has actually provided or confirmed.
-- If a posting looks like it requires an account action (e.g. "Easy Apply" auto-fill) rather than a standalone form, still stop at the summary/`formFields` stage from the orchestrator's side — apply-assist can still prefill it locally when the human opens it, but the orchestrator itself performs no LinkedIn interaction.
+- If a posting looks like it requires an account action (e.g. "Easy Apply" auto-fill) rather than a standalone form, still stop at the summary/`formFields` stage from the orchestrator's side — job-application-form-prefill can still prefill it locally when the human opens it, but the orchestrator itself performs no LinkedIn interaction.
 - `scrapeAny`'s open web scope (no site allowlist — confirmed) means postings can come from sites with no individual ToS/robots.txt review, unlike `scraping`'s LinkedIn-specific accepted-risk note. Treat that as a broader, less-characterized version of the same kind of exposure, not a separate concern that's already been resolved.
 - No shared-skill tier applies here (unlike dev projects, which read `skills/shared/dev/` by tag match) — everything this project needs lives under this folder. Don't add a dependency on `skills/shared/` content from this skill.

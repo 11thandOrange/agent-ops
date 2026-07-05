@@ -49,6 +49,7 @@ const PersonalTriggerBody = z.object({
   criteria: JobCriteriaSchema.optional(),
   maxResults: z.number().int().positive().optional(),
   searchProvider: z.enum(["serpapi", "claude_web_search"]).optional(),
+  scrapingAdapter: z.enum(["linkedin", "glassdoor", "indeed", "generic-one-page-app", "generic-multistep-app"]).optional(),
 });
 const TriggerBody = z.discriminatedUnion("kind", [DevTriggerBody, PersonalTriggerBody]);
 
@@ -98,6 +99,7 @@ export function handleHttpTrigger(deps: HttpTriggerDeps) {
         criteria: call.criteria,
         maxResults: call.maxResults,
         searchProvider: call.searchProvider,
+        scrapingAdapter: call.scrapingAdapter,
       });
       // Only present when the-store is actually configured — same gating as
       // the CSV append itself (dispatchPersonalPipeline warns and skips

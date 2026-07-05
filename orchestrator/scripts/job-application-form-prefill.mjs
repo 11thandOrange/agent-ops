@@ -14,7 +14,7 @@
 // normal node_modules walk-up — it resolves relative to *this file's own*
 // location, not the shell's cwd, and skills/ isn't an ancestor of
 // orchestrator/node_modules. Run from within orchestrator/:
-//   node scripts/apply-assist.mjs \
+//   node scripts/job-application-form-prefill.mjs \
 //     --url "https://www.linkedin.com/jobs/view/12345" \
 //     --data ./application-fields.json \
 //     --sessions-dir "$SITE_SESSIONS_DIR"
@@ -345,7 +345,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.url || !args.data) {
     console.error(
-      "Usage: node scripts/apply-assist.mjs --url <jobUrl> --data <fields.json> " +
+      "Usage: node scripts/job-application-form-prefill.mjs --url <jobUrl> --data <fields.json> " +
         "[--storage-state <path> | --sessions-dir <dir>] [--litellm-url <url>] [--litellm-key <key>] [--model planning]",
     );
     process.exit(1);

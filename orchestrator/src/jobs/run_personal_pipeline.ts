@@ -15,7 +15,7 @@ import * as apiSourcing from "./sourcing/api.js";
 import * as scrapingSourcing from "./sourcing/scraping.js";
 import * as scrapeAllDiscovery from "./discovery/scrapeAll.js";
 import * as scrapeAnyDiscovery from "./discovery/scrapeAny.js";
-import type { DocumentSource, JobCriteria, PostingCandidate, SearchProviderName, SourcingMethod, Strategy } from "../types.js";
+import type { DocumentSource, JobCriteria, PostingCandidate, ScrapingAdapterName, SearchProviderName, SourcingMethod, Strategy } from "../types.js";
 
 export interface PersonalPipelineDeps {
   githubApp: GitHubAppConfig;
@@ -48,6 +48,7 @@ export interface PersonalPipelineRequest {
   criteria?: JobCriteria;
   maxResults?: number;
   searchProvider?: SearchProviderName; // scrapeAny only
+  scrapingAdapter?: ScrapingAdapterName; // sourcing_method: scraping only
 }
 
 export interface DocumentResult {
@@ -62,7 +63,7 @@ export interface ApplicationPackage {
   coverLetter: DocumentResult;
   applicationSummary: string;
   // Flat label -> value map for the local companion prefill script
-  // (skills/personal/resume-job-applier/apply-assist) to fill form fields
+  // (skills/personal/resume-job-applier/job-application-form-prefill) to fill form fields
   // against when you open sourceUrl yourself — narrative applicationSummary
   // is for you to read, formFields is what that script consumes.
   formFields: Record<string, string>;
@@ -102,6 +103,7 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
   const strategy = req.strategy ?? entry.strategy;
   const maxResults = req.maxResults ?? entry.max_results;
   const searchProvider = req.searchProvider ?? entry.search_provider;
+  const scrapingAdapter = req.scrapingAdapter ?? entry.scraping_adapter;
 
   // manual sourcing is pure passthrough — it returns whatever it's given AS
   // the posting text, without fetching anything. scrapeAll/scrapeAny hand
@@ -138,7 +140,7 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
   for (const candidate of candidates) {
     try {
       const sourceRequest = candidate?.url ?? req.request;
-      const posting = await gatherPosting(deps, sourcingMethod, { request: sourceRequest });
+      const posting = await gatherPosting(deps, sourcingMethod, { request: sourceRequest }, scrapingAdapter);
 
       const draft = await draftPackage(deps.liteLLM, entry.model_profile, skillContent, sourcingSkillContent, posting.postingText, needsResume, needsCoverLetter);
 
@@ -225,7 +227,12 @@ async function discoverCandidates(
   }
 }
 
-async function gatherPosting(deps: PersonalPipelineDeps, method: SourcingMethod, input: { request: string }) {
+async function gatherPosting(
+  deps: PersonalPipelineDeps,
+  method: SourcingMethod,
+  input: { request: string },
+  scrapingAdapter?: ScrapingAdapterName,
+) {
   switch (method) {
     case "manual":
       return manualSourcing.gatherPosting(input);
@@ -240,7 +247,7 @@ async function gatherPosting(deps: PersonalPipelineDeps, method: SourcingMethod,
       // outright whenever SITE_SESSIONS_DIR was unset at all, even for a
       // plain public posting with no login wall — found live against a
       // non-LinkedIn, unauthenticated careers-site posting.
-      return scrapingSourcing.gatherPosting(deps.scrapingSourcing, input);
+      return scrapingSourcing.gatherPosting(deps.scrapingSourcing, input, scrapingAdapter);
   }
 }
 

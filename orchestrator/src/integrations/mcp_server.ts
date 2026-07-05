@@ -103,7 +103,8 @@ export function buildMcpServer(config: McpBridgeConfig): McpServer {
         "strategy scrapeOne: request is a pasted posting or its URL, one application produced. " +
         "scrapeAll: request is a job-site URL to crawl, up to maxResults applications produced from matches. " +
         "scrapeAny: request is ignored, criteria drives an open web search (no site allowlist), up to maxResults applications produced — " +
-        "searchProvider picks which search API/tool runs that discovery: serpapi (REST search API) or claude_web_search (Anthropic's server-side web_search tool, no separate search vendor needed).",
+        "searchProvider picks which search API/tool runs that discovery: serpapi (REST search API) or claude_web_search (Anthropic's server-side web_search tool, no separate search vendor needed). " +
+        "sourcing_method scraping uses scrapingAdapter (or auto-detects from the URL's hostname) to pick how the posting text is extracted: linkedin/glassdoor/indeed are named adapters, generic-one-page-app/generic-multistep-app are fallbacks for any other site (e.g. a posting on a company's own careers site).",
       inputSchema: {
         project: z.string().describe("the registry project name"),
         request: z.string(),
@@ -118,6 +119,10 @@ export function buildMcpServer(config: McpBridgeConfig): McpServer {
           .enum(["serpapi", "claude_web_search"])
           .optional()
           .describe("scrapeAny only — which search provider discovers candidates, overrides the registry's search_provider default"),
+        scrapingAdapter: z
+          .enum(["linkedin", "glassdoor", "indeed", "generic-one-page-app", "generic-multistep-app"])
+          .optional()
+          .describe("sourcing_method scraping only — overrides the registry's scraping_adapter default, or the URL-based auto-detection if neither is set"),
       },
     },
     async (args) => textResult(await callOrchestrator(config, { tool: "run_personal_project_pipeline", ...args })),

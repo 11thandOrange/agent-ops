@@ -1,5 +1,5 @@
 ---
-name: resume-job-applier-apply-assist
+name: resume-job-applier-job-application-form-prefill
 description: Local companion script that pre-fills a job application's form fields when you open the link yourself. Fill-only — never submits.
 ---
 
@@ -15,10 +15,10 @@ This was confirmed explicitly during planning: fill-only *for now*, with revisit
 
 ## Running it
 
-The script itself lives at `orchestrator/scripts/apply-assist.mjs`, not under this skill folder — Node's ESM resolver finds the `playwright` dependency by walking up from the *script's own* location, not the shell's working directory, so it has to live somewhere `orchestrator/node_modules` is actually an ancestor of. Run it from within `orchestrator/`:
+The script itself lives at `orchestrator/scripts/job-application-form-prefill.mjs`, not under this skill folder — Node's ESM resolver finds the `playwright` dependency by walking up from the *script's own* location, not the shell's working directory, so it has to live somewhere `orchestrator/node_modules` is actually an ancestor of. Run it from within `orchestrator/`:
 
 ```
-node scripts/apply-assist.mjs \
+node scripts/job-application-form-prefill.mjs \
   --url "<job posting URL>" \
   --data ./application-fields.json \
   --sessions-dir "$SITE_SESSIONS_DIR" \

@@ -5,35 +5,40 @@
 // explicit risk note. Runs against your own authenticated session for
 // whatever site the posting URL belongs to (a saved Playwright storage
 // state, resolved by hostname via integrations/site_sessions.ts — not a
-// single LinkedIn-only path, since scraping.gatherPosting itself is
-// site-agnostic even though the resume-job-applier project's own scope is
-// LinkedIn-only today), not anonymously, since an anonymous scrape is both
-// more detectable and more fragile.
+// single LinkedIn-only path), not anonymously when a session exists, since
+// an anonymous scrape is both more detectable and more fragile — but no
+// session is required either; not every site needs, or has, one.
 //
-// The exact selectors below target LinkedIn's job-posting page structure as
-// of when this was written and are the most likely thing to need updating
-// if LinkedIn changes its markup — this hasn't been run against a live,
-// authenticated LinkedIn session (no test credentials available in the
-// environment this was built in), so treat it as a real first draft to
-// verify against an actual posting before relying on it. A second site
-// would need its own selector logic here (or a model-assisted extraction
-// like discovery/scrapeAll.ts uses for arbitrary listing pages), not just
-// its own session file.
+// (Revised) actual per-site extraction now lives in scrapingAdapters/ — a
+// two-tier adapter system (named adapters tuned to one specific site, plus
+// generic fallback adapters for anything else, e.g. a posting on a
+// company's own careers site) instead of one hardcoded LinkedIn-only
+// selector. See scrapingAdapters/resolver.ts for the resolution order and
+// skills/personal/resume-job-applier/sourcing/scraping/SKILL.md for the
+// model.
 import { chromium } from "playwright";
 import { resolveStorageState, type SiteSessionsConfig } from "../../integrations/site_sessions.js";
+import { resolveAdapterName, extractWithAdapter } from "./scrapingAdapters/resolver.js";
+import { detectLoginWall } from "./scrapingAdapters/loginWall.js";
+import type { ScrapingAdapterName } from "../../types.js";
 import type { SourcingInput, SourcingResult } from "./types.js";
 
 export type ScrapingSourcingConfig = SiteSessionsConfig;
 
 const URL_PATTERN = /https?:\/\/\S+/;
 
-export async function gatherPosting(config: ScrapingSourcingConfig | undefined, input: SourcingInput): Promise<SourcingResult> {
+export async function gatherPosting(
+  config: ScrapingSourcingConfig | undefined,
+  input: SourcingInput,
+  adapterOverride?: ScrapingAdapterName,
+): Promise<SourcingResult> {
   const match = input.request.match(URL_PATTERN);
   if (!match) {
     throw new Error("scraping sourcing: the chat request must contain the job posting URL");
   }
   const url = match[0];
   const storageState = resolveStorageState(config, url);
+  const adapterName = resolveAdapterName(url, adapterOverride);
 
   const browser = await chromium.launch();
   try {
@@ -41,11 +46,16 @@ export async function gatherPosting(config: ScrapingSourcingConfig | undefined, 
     const page = await context.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    const descriptionSelector = ".jobs-description__content, .jobs-box__html-content";
-    await page.waitForSelector(descriptionSelector, { timeout: 15_000 });
-    const postingText = (await page.locator(descriptionSelector).first().innerText()).trim();
+    // Distinct, clearer error than a generic selector timeout when the
+    // reason is specifically a login wall — previously indistinguishable
+    // from a wrong selector, a slow page, or a markup change.
+    if (await detectLoginWall(page)) {
+      throw new Error(`scraping sourcing: ${url} appears to require login — no saved session matched this site, or it may have expired`);
+    }
+
+    const postingText = (await extractWithAdapter(adapterName, page)).trim();
     if (!postingText) {
-      throw new Error(`scraping sourcing: no posting text found at ${url} — the page may require re-authentication or LinkedIn's markup has changed`);
+      throw new Error(`scraping sourcing: no posting text found at ${url} (adapter: ${adapterName}) — the page's markup may not match this adapter`);
     }
     return { postingText, sourceUrl: url };
   } finally {

@@ -61,6 +61,7 @@ const RunPersonalProjectPipeline = z.object({
   criteria: JobCriteriaSchema.optional(),
   maxResults: z.number().int().positive().optional(),
   searchProvider: z.enum(["serpapi", "claude_web_search"]).optional(),
+  scrapingAdapter: z.enum(["linkedin", "glassdoor", "indeed", "generic-one-page-app", "generic-multistep-app"]).optional(),
 });
 
 const ToolCallBody = z.discriminatedUnion("tool", [
@@ -165,6 +166,7 @@ export function handleChatCommand(deps: ChatCommandDeps) {
             criteria: call.criteria,
             maxResults: call.maxResults,
             searchProvider: call.searchProvider,
+            scrapingAdapter: call.scrapingAdapter,
           });
           const csvUrl = deps.personalPipeline.theStore ? theStoreFileUrl(deps.personalPipeline.theStore) : undefined;
           res.status(200).json({ correlationId, status: "complete", result, csvUrl });

@@ -57,6 +57,17 @@ export type Strategy = "scrapeOne" | "scrapeAll" | "scrapeAny";
 // scrapeOne/scrapeAll. See jobs/discovery/scrapeAny.ts and its providers/.
 export type SearchProviderName = "serpapi" | "claude_web_search";
 
+// Which adapter sourcing_method: scraping uses to extract a posting's text
+// from a given URL. Two tiers: named adapters tuned to one specific site
+// (linkedin, glassdoor, indeed), and generic fallback adapters for anything
+// else — a job posted directly on a company's own careers site, which has
+// no dedicated adapter and never will for every possible ATS vendor.
+// Resolution order (jobs/sourcing/scrapingAdapters/resolver.ts): explicit
+// override > hostname match against a named adapter > generic-multistep-app
+// as the default fallback (it degrades to one-page behavior on its own when
+// no Next/Continue control exists, so it's a safe default either way).
+export type ScrapingAdapterName = "linkedin" | "glassdoor" | "indeed" | "generic-one-page-app" | "generic-multistep-app";
+
 // Best-effort filter criteria for scrapeAll/scrapeAny. Matching is forgiving
 // by design: a candidate posting with no discoverable data for a given
 // criterion is not excluded on that criterion alone (scraped/searched
@@ -99,6 +110,7 @@ export interface PersonalProjectEntry {
   strategy: Strategy;
   max_results: number; // caps scrapeAll/scrapeAny — each result costs a full model call + document renders
   search_provider: SearchProviderName; // scrapeAny only — which search API/tool discovers candidates
+  scraping_adapter?: ScrapingAdapterName; // sourcing_method: scraping only — omit to auto-detect from the URL
 }
 
 export type ProjectEntry = DevProjectEntry | PersonalProjectEntry;
