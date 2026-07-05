@@ -54,6 +54,24 @@ jobs:
           THE_STORE_REPO: ${{ secrets.THE_STORE_REPO }}
           THE_STORE_BRANCH: ${{ secrets.THE_STORE_BRANCH }}
           THE_STORE_PATH: ${{ secrets.THE_STORE_PATH }}
+          # (New) applicant background for drafting — gated as a whole in
+          # server.ts by the five required fields all being set.
+          APPLICANT_FIRST_NAME: ${{ secrets.APPLICANT_FIRST_NAME }}
+          APPLICANT_LAST_NAME: ${{ secrets.APPLICANT_LAST_NAME }}
+          APPLICANT_EMAIL: ${{ secrets.APPLICANT_EMAIL }}
+          APPLICANT_PHONE: ${{ secrets.APPLICANT_PHONE }}
+          APPLICANT_PROFESSIONAL_SUMMARY: ${{ secrets.APPLICANT_PROFESSIONAL_SUMMARY }}
+          APPLICANT_RESUME_GDRIVE_LINK: ${{ secrets.APPLICANT_RESUME_GDRIVE_LINK }}
+          APPLICANT_LOCATION: ${{ secrets.APPLICANT_LOCATION }}
+          APPLICANT_LINKEDIN_URL: ${{ secrets.APPLICANT_LINKEDIN_URL }}
+          APPLICANT_PORTFOLIO_URL: ${{ secrets.APPLICANT_PORTFOLIO_URL }}
+          APPLICANT_CURRENT_TITLE: ${{ secrets.APPLICANT_CURRENT_TITLE }}
+          APPLICANT_CURRENT_EMPLOYER: ${{ secrets.APPLICANT_CURRENT_EMPLOYER }}
+          APPLICANT_YEARS_EXPERIENCE: ${{ secrets.APPLICANT_YEARS_EXPERIENCE }}
+          APPLICANT_WORK_AUTHORIZATION: ${{ secrets.APPLICANT_WORK_AUTHORIZATION }}
+          APPLICANT_SPONSORSHIP_REQUIRED: ${{ secrets.APPLICANT_SPONSORSHIP_REQUIRED }}
+          APPLICANT_DESIRED_SALARY: ${{ secrets.APPLICANT_DESIRED_SALARY }}
+          APPLICANT_AVAILABILITY: ${{ secrets.APPLICANT_AVAILABILITY }}
         run: |
           python3 - <<'PYEOF'
           import os
@@ -86,6 +104,12 @@ jobs:
               "SITE_SESSIONS_DIR",
               "SERPAPI_API_KEY", "ANTHROPIC_API_KEY",
               "THE_STORE_OWNER", "THE_STORE_REPO", "THE_STORE_BRANCH", "THE_STORE_PATH",
+              "APPLICANT_FIRST_NAME", "APPLICANT_LAST_NAME", "APPLICANT_EMAIL", "APPLICANT_PHONE",
+              "APPLICANT_PROFESSIONAL_SUMMARY", "APPLICANT_RESUME_GDRIVE_LINK",
+              "APPLICANT_LOCATION", "APPLICANT_LINKEDIN_URL", "APPLICANT_PORTFOLIO_URL",
+              "APPLICANT_CURRENT_TITLE", "APPLICANT_CURRENT_EMPLOYER", "APPLICANT_YEARS_EXPERIENCE",
+              "APPLICANT_WORK_AUTHORIZATION", "APPLICANT_SPONSORSHIP_REQUIRED",
+              "APPLICANT_DESIRED_SALARY", "APPLICANT_AVAILABILITY",
           ]
           for key in optional:
               value = os.environ.get(key, "")

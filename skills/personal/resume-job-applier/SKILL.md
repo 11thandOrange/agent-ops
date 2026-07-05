@@ -65,6 +65,23 @@ An earlier version of this skill required `manual`/`api` only and forbade scrapi
 
 Adding a future provider means adding one new adapter module implementing the same `(query, maxResults) => PostingCandidate[]` shape and one more case in the dispatcher — existing providers are untouched. `formFields`/`applicationSummary` drafting is unaffected either way; only *how candidates are discovered* changes.
 
+## Applicant background — grounds drafting, entirely separate from resume_source/cover_letter_source
+
+**(New)** the model used to receive nothing about the applicant at all — only the job posting text. That's a real gap: fields like "First Name" or "Describe your relevant experience" can only be answered by *inventing* an identity and history, which directly violates the "don't invent" guardrail below. Confirmed live: a real run correctly produced an empty `formFields` and a "cannot draft, no details provided" summary, for exactly this reason, on top of a thin scraped posting.
+
+Server-config-level env vars (one applicant, not per-project or per-call — see `.env.example`) fix this:
+
+| Env var | Purpose |
+|---|---|
+| `APPLICANT_FIRST_NAME`, `APPLICANT_LAST_NAME`, `APPLICANT_EMAIL`, `APPLICANT_PHONE` | Direct answers for the matching form fields |
+| `APPLICANT_PROFESSIONAL_SUMMARY` | Free text — current role, years of experience, key skills |
+| `APPLICANT_RESUME_GDRIVE_LINK` | A Google Drive link to the applicant's actual resume, shared "Anyone with the link can view" — fetched live as plain text (`integrations/google_drive.ts`), once per request, no credential needed since the link is public. Works for a native Google Doc (exported directly) or an uploaded PDF (downloaded + parsed); `.docx` and other formats aren't supported and fail clearly. |
+| The rest (location, LinkedIn, portfolio, current title/employer, years of experience, work authorization, sponsorship, desired salary, availability) | Optional — fill in whichever you want available |
+
+**This is entirely separate from `resume_source`/`cover_letter_source`** (above) — those control what document the *output* actually is (a freshly-drafted PDF, or a static existing link); the applicant-background vars control what the model *knows* while drafting *any* field, regardless of which output mode is chosen. The two can point at the same document or different ones; the pipeline assumes no relationship between them.
+
+**Drafting uses all three sources together, with no forced precedence** — the job posting, `APPLICANT_PROFESSIONAL_SUMMARY`, and the fetched resume text are all handed to the model at once; whichever source actually answers a given field is the one it draws from. Anything none of the three cover is left out of `formFields` rather than guessed — the "don't invent" rule from the hard rule at the top of this doc now explicitly covers applicant background, not just posting details.
+
 ## Output package
 
 For each job application, produce:

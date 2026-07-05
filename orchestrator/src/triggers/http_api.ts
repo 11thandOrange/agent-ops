@@ -55,7 +55,7 @@ const TriggerBody = z.discriminatedUnion("kind", [DevTriggerBody, PersonalTrigge
 
 export interface HttpTriggerDeps {
   dev: DispatchDeps;
-  personal: Pick<PersonalPipelineDeps, "githubApp" | "installationId" | "controlRepoOwner" | "controlRepoName" | "branch" | "liteLLM" | "apiSourcing" | "scrapingSourcing" | "scrapeAllSourcing" | "scrapeAnySourcing" | "theStore">;
+  personal: Pick<PersonalPipelineDeps, "githubApp" | "installationId" | "controlRepoOwner" | "controlRepoName" | "branch" | "liteLLM" | "apiSourcing" | "scrapingSourcing" | "scrapeAllSourcing" | "scrapeAnySourcing" | "theStore" | "applicantProfile">;
 }
 
 export function handleHttpTrigger(deps: HttpTriggerDeps) {

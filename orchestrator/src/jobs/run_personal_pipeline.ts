@@ -9,6 +9,7 @@ import { parseModelJson } from "../integrations/llmJson.js";
 import { getFileContents, getInstallationToken, type GitHubAppConfig } from "../integrations/github.js";
 import { renderTextToPdf } from "../integrations/pdf.js";
 import { appendJobApplicationRow, type TheStoreConfig } from "../integrations/the_store.js";
+import { fetchResumeText } from "../integrations/google_drive.js";
 import { logger } from "../logging.js";
 import { loadPersonalProject } from "../registry/load.js";
 import * as manualSourcing from "./sourcing/manual.js";
@@ -16,7 +17,7 @@ import * as apiSourcing from "./sourcing/api.js";
 import * as scrapingSourcing from "./sourcing/scraping.js";
 import * as scrapeAllDiscovery from "./discovery/scrapeAll.js";
 import * as scrapeAnyDiscovery from "./discovery/scrapeAny.js";
-import type { DocumentSource, JobCriteria, PostingCandidate, ScrapingAdapterName, SearchProviderName, SourcingMethod, Strategy } from "../types.js";
+import type { ApplicantProfile, DocumentSource, JobCriteria, PostingCandidate, ScrapingAdapterName, SearchProviderName, SourcingMethod, Strategy } from "../types.js";
 
 export interface PersonalPipelineDeps {
   githubApp: GitHubAppConfig;
@@ -32,6 +33,10 @@ export interface PersonalPipelineDeps {
   // Optional — the-store may not exist/be configured yet; appends are
   // skipped (with a warning) rather than failing the pipeline when unset.
   theStore?: TheStoreConfig;
+  // Optional — background grounding for drafting, separate from
+  // resumeSource/coverLetterSource (those control the output document).
+  // Fetched once per request below, not per-candidate.
+  applicantProfile?: ApplicantProfile;
 }
 
 export interface PersonalPipelineRequest {
@@ -137,13 +142,36 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
   const needsResume = resumeSource.mode === "generated_pdf";
   const needsCoverLetter = coverLetterSource.mode === "generated_pdf";
 
+  // Fetched once per request, not per-candidate — reused across every
+  // candidate in a scrapeAll/scrapeAny batch. A fetch failure here (bad
+  // link, unsupported file format) is logged and drafting proceeds without
+  // it rather than failing the whole batch over background grounding.
+  let resumeText = "";
+  if (deps.applicantProfile?.resumeGdriveLink) {
+    try {
+      resumeText = await fetchResumeText(deps.applicantProfile.resumeGdriveLink);
+    } catch (err) {
+      log.warn("failed to fetch applicant resume from Google Drive — drafting without it", { error: String(err) });
+    }
+  }
+
   const results: PersonalPipelineResultItem[] = [];
   for (const candidate of candidates) {
     try {
       const sourceRequest = candidate?.url ?? req.request;
       const posting = await gatherPosting(deps, sourcingMethod, { request: sourceRequest }, scrapingAdapter);
 
-      const draft = await draftPackage(deps.liteLLM, entry.model_profile, skillContent, sourcingSkillContent, posting.postingText, needsResume, needsCoverLetter);
+      const draft = await draftPackage(
+        deps.liteLLM,
+        entry.model_profile,
+        skillContent,
+        sourcingSkillContent,
+        posting.postingText,
+        needsResume,
+        needsCoverLetter,
+        deps.applicantProfile,
+        resumeText,
+      );
 
       const resume: DocumentResult =
         resumeSource.mode === "gdrive_link"
@@ -259,6 +287,34 @@ interface Draft {
   formFields: Record<string, string>;
 }
 
+// Renders the applicant's background as plain labeled lines for the
+// prompt — omits any field that isn't set rather than sending an empty
+// value the model might mistake for "field exists but is blank".
+function formatApplicantProfile(profile: ApplicantProfile | undefined): string {
+  if (!profile) return "";
+  const lines: Array<[string, string | undefined]> = [
+    ["First name", profile.firstName],
+    ["Last name", profile.lastName],
+    ["Email", profile.email],
+    ["Phone", profile.phone],
+    ["Professional summary", profile.professionalSummary],
+    ["Location", profile.location],
+    ["LinkedIn", profile.linkedinUrl],
+    ["Portfolio", profile.portfolioUrl],
+    ["Current title", profile.currentTitle],
+    ["Current employer", profile.currentEmployer],
+    ["Years of experience", profile.yearsExperience],
+    ["Work authorization", profile.workAuthorization],
+    ["Requires sponsorship", profile.sponsorshipRequired],
+    ["Desired salary", profile.desiredSalary],
+    ["Availability", profile.availability],
+  ];
+  return lines
+    .filter(([, value]) => value)
+    .map(([label, value]) => `${label}: ${value}`)
+    .join("\n");
+}
+
 async function draftPackage(
   liteLLM: LiteLLMConfig,
   modelAlias: string,
@@ -267,6 +323,8 @@ async function draftPackage(
   postingText: string,
   needsResume: boolean,
   needsCoverLetter: boolean,
+  applicantProfile?: ApplicantProfile,
+  resumeText?: string,
 ): Promise<Draft> {
   const fields = ["applicationSummary", "formFields", ...(needsResume ? ["resume"] : []), ...(needsCoverLetter ? ["coverLetter"] : [])];
   const system = [
@@ -274,12 +332,23 @@ async function draftPackage(
     sourcingSkillContent,
     `Respond with ONLY a JSON object with exactly these keys: ${fields.join(", ")}. ` +
       `"formFields" must be a flat JSON object mapping each application-form field label (e.g. "First Name", "Cover Letter", "Why do you want this role?") to its drafted value as a string — this is consumed by an automated form-fill script, so keys must match the labels an application form would actually show, not paraphrases. ` +
+      "Draft every answer from the three sources below — the job posting, the applicant's professional summary, and their resume — used together as needed, in no particular order: whichever source actually answers a given question is the one to use. " +
+      "Do not invent anything not supported by at least one of those three sources — this applies to the applicant's background exactly as much as it applies to posting details. If none of the three sources answer a field, leave it out of formFields rather than guessing. " +
       "No markdown code fences, no text outside the JSON object.",
   ].join("\n\n---\n\n");
 
+  const applicantSection = formatApplicantProfile(applicantProfile);
+  const userContent = [
+    `Job posting:\n\n${postingText}`,
+    applicantSection && `Applicant background:\n\n${applicantSection}`,
+    resumeText && `Applicant's resume:\n\n${resumeText}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n---\n\n");
+
   const raw = await chatCompletion(liteLLM, modelAlias, [
     { role: "system", content: system },
-    { role: "user", content: `Job posting:\n\n${postingText}` },
+    { role: "user", content: userContent },
   ]);
 
   let parsed: Partial<Draft>;

@@ -99,6 +99,32 @@ export interface PostingCandidate {
   snippet?: string;
 }
 
+// Applicant background, entirely separate from resume_source/
+// cover_letter_source above (those control the *output* document; this is
+// *input* the drafting model reads from). Server-config-level, not
+// per-project or per-call — one applicant, used across all personal
+// projects. resumeGdriveLink is fetched to text once per request
+// (integrations/google_drive.ts), not stored here as text — this only
+// holds the link itself.
+export interface ApplicantProfile {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  professionalSummary: string;
+  resumeGdriveLink?: string;
+  location?: string;
+  linkedinUrl?: string;
+  portfolioUrl?: string;
+  currentTitle?: string;
+  currentEmployer?: string;
+  yearsExperience?: string;
+  workAuthorization?: string;
+  sponsorshipRequired?: string;
+  desiredSalary?: string;
+  availability?: string;
+}
+
 export interface PersonalProjectEntry {
   project: string;
   type: "personal";

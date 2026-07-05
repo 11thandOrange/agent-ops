@@ -87,7 +87,7 @@ export interface ChatCommandDeps {
   branch: string;
   personalPipeline: Pick<
     PersonalPipelineDeps,
-    "installationId" | "liteLLM" | "apiSourcing" | "scrapingSourcing" | "scrapeAllSourcing" | "scrapeAnySourcing" | "theStore"
+    "installationId" | "liteLLM" | "apiSourcing" | "scrapingSourcing" | "scrapeAllSourcing" | "scrapeAnySourcing" | "theStore" | "applicantProfile"
   >;
 }
 

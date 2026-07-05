@@ -101,6 +101,37 @@ const config = {
           path: process.env.THE_STORE_PATH ?? "projects/job-applications/job-app-results.csv",
         }
       : undefined,
+  // Applicant background fed to the drafting model as grounding material —
+  // entirely separate from resume_source/cover_letter_source (those control
+  // the *output* document). One applicant, server-config-level, not
+  // per-project. Optional as a whole (gated by the five core fields being
+  // set) so a server without this configured still runs personal-pipeline
+  // requests exactly as before, just without this grounding.
+  applicantProfile:
+    process.env.APPLICANT_FIRST_NAME &&
+    process.env.APPLICANT_LAST_NAME &&
+    process.env.APPLICANT_EMAIL &&
+    process.env.APPLICANT_PHONE &&
+    process.env.APPLICANT_PROFESSIONAL_SUMMARY
+      ? {
+          firstName: process.env.APPLICANT_FIRST_NAME,
+          lastName: process.env.APPLICANT_LAST_NAME,
+          email: process.env.APPLICANT_EMAIL,
+          phone: process.env.APPLICANT_PHONE,
+          professionalSummary: process.env.APPLICANT_PROFESSIONAL_SUMMARY,
+          resumeGdriveLink: process.env.APPLICANT_RESUME_GDRIVE_LINK,
+          location: process.env.APPLICANT_LOCATION,
+          linkedinUrl: process.env.APPLICANT_LINKEDIN_URL,
+          portfolioUrl: process.env.APPLICANT_PORTFOLIO_URL,
+          currentTitle: process.env.APPLICANT_CURRENT_TITLE,
+          currentEmployer: process.env.APPLICANT_CURRENT_EMPLOYER,
+          yearsExperience: process.env.APPLICANT_YEARS_EXPERIENCE,
+          workAuthorization: process.env.APPLICANT_WORK_AUTHORIZATION,
+          sponsorshipRequired: process.env.APPLICANT_SPONSORSHIP_REQUIRED,
+          desiredSalary: process.env.APPLICANT_DESIRED_SALARY,
+          availability: process.env.APPLICANT_AVAILABILITY,
+        }
+      : undefined,
 };
 
 const dispatchDeps = { githubApp: config.githubApp, installationId: config.installationId };
@@ -115,6 +146,7 @@ const personalPipelineDeps = {
   scrapeAllSourcing: config.siteSessions,
   scrapeAnySourcing: config.scrapeAnySourcing,
   theStore: config.theStore,
+  applicantProfile: config.applicantProfile,
 };
 const chatCommandDeps = {
   ...dispatchDeps,
