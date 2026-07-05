@@ -102,7 +102,8 @@ export function buildMcpServer(config: McpBridgeConfig): McpServer {
         "Runs a registered personal project directly (no CI runner — the orchestrator executes it). " +
         "strategy scrapeOne: request is a pasted posting or its URL, one application produced. " +
         "scrapeAll: request is a job-site URL to crawl, up to maxResults applications produced from matches. " +
-        "scrapeAny: request is ignored, criteria drives an open web search (no site allowlist), up to maxResults applications produced.",
+        "scrapeAny: request is ignored, criteria drives an open web search (no site allowlist), up to maxResults applications produced — " +
+        "searchProvider picks which search API/tool runs that discovery: serpapi (REST search API) or claude_web_search (Anthropic's server-side web_search tool, no separate search vendor needed).",
       inputSchema: {
         project: z.string().describe("the registry project name"),
         request: z.string(),
@@ -113,6 +114,10 @@ export function buildMcpServer(config: McpBridgeConfig): McpServer {
         strategy: z.enum(["scrapeOne", "scrapeAll", "scrapeAny"]).optional().describe("overrides the registry's default for this call"),
         criteria: jobCriteriaSchema.optional().describe("scrapeAll/scrapeAny only — filters candidate postings"),
         maxResults: z.number().int().positive().optional().describe("scrapeAll/scrapeAny only — caps applications produced, overrides the registry default"),
+        searchProvider: z
+          .enum(["serpapi", "claude_web_search"])
+          .optional()
+          .describe("scrapeAny only — which search provider discovers candidates, overrides the registry's search_provider default"),
       },
     },
     async (args) => textResult(await callOrchestrator(config, { tool: "run_personal_project_pipeline", ...args })),

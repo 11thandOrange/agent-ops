@@ -42,8 +42,8 @@ jobs:
           JOB_API_BASE_URL: ${{ secrets.JOB_API_BASE_URL }}
           JOB_API_KEY: ${{ secrets.JOB_API_KEY }}
           SITE_SESSIONS_DIR: ${{ secrets.SITE_SESSIONS_DIR }}
-          WEB_SEARCH_API_URL: ${{ secrets.WEB_SEARCH_API_URL }}
-          WEB_SEARCH_API_KEY: ${{ secrets.WEB_SEARCH_API_KEY }}
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           THE_STORE_OWNER: ${{ secrets.THE_STORE_OWNER }}
           THE_STORE_REPO: ${{ secrets.THE_STORE_REPO }}
           THE_STORE_BRANCH: ${{ secrets.THE_STORE_BRANCH }}
@@ -77,7 +77,7 @@ jobs:
           optional = [
               "JOB_API_BASE_URL", "JOB_API_KEY",
               "SITE_SESSIONS_DIR",
-              "WEB_SEARCH_API_URL", "WEB_SEARCH_API_KEY",
+              "SERPAPI_API_KEY", "ANTHROPIC_API_KEY",
               "THE_STORE_OWNER", "THE_STORE_REPO", "THE_STORE_BRANCH", "THE_STORE_PATH",
           ]
           for key in optional:

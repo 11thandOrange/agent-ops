@@ -15,7 +15,7 @@ import * as apiSourcing from "./sourcing/api.js";
 import * as scrapingSourcing from "./sourcing/scraping.js";
 import * as scrapeAllDiscovery from "./discovery/scrapeAll.js";
 import * as scrapeAnyDiscovery from "./discovery/scrapeAny.js";
-import type { DocumentSource, JobCriteria, PostingCandidate, SourcingMethod, Strategy } from "../types.js";
+import type { DocumentSource, JobCriteria, PostingCandidate, SearchProviderName, SourcingMethod, Strategy } from "../types.js";
 
 export interface PersonalPipelineDeps {
   githubApp: GitHubAppConfig;
@@ -47,6 +47,7 @@ export interface PersonalPipelineRequest {
   strategy?: Strategy;
   criteria?: JobCriteria;
   maxResults?: number;
+  searchProvider?: SearchProviderName; // scrapeAny only
 }
 
 export interface DocumentResult {
@@ -100,6 +101,7 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
   const sourcingMethod = req.sourcingMethod ?? entry.sourcing_method;
   const strategy = req.strategy ?? entry.strategy;
   const maxResults = req.maxResults ?? entry.max_results;
+  const searchProvider = req.searchProvider ?? entry.search_provider;
 
   // manual sourcing is pure passthrough — it returns whatever it's given AS
   // the posting text, without fetching anything. scrapeAll/scrapeAny hand
@@ -126,8 +128,8 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
     deps.branch,
   );
 
-  log.info("discovering postings", { strategy, sourcingMethod, maxResults });
-  const candidates = await discoverCandidates(deps, strategy, req, entry.model_profile, maxResults);
+  log.info("discovering postings", { strategy, sourcingMethod, maxResults, searchProvider });
+  const candidates = await discoverCandidates(deps, strategy, req, entry.model_profile, maxResults, searchProvider);
 
   const needsResume = resumeSource.mode === "generated_pdf";
   const needsCoverLetter = coverLetterSource.mode === "generated_pdf";
@@ -175,6 +177,7 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
             sourceSite: sourceUrl ? new URL(sourceUrl).hostname : "",
             strategy,
             sourcingMethod,
+            searchProvider: strategy === "scrapeAny" ? searchProvider : "",
             resumeMode: resumeSource.mode,
             coverLetterMode: coverLetterSource.mode,
             correlationId: req.correlationId,
@@ -207,6 +210,7 @@ async function discoverCandidates(
   req: PersonalPipelineRequest,
   modelAlias: string,
   maxResults: number,
+  searchProvider: SearchProviderName,
 ): Promise<Array<PostingCandidate | undefined>> {
   switch (strategy) {
     case "scrapeOne":
@@ -217,8 +221,7 @@ async function discoverCandidates(
       // per-site when either the config or that hostname's file is absent.
       return scrapeAllDiscovery.discover(deps.scrapeAllSourcing, deps.liteLLM, modelAlias, req.request, req.criteria, maxResults);
     case "scrapeAny":
-      if (!deps.scrapeAnySourcing) throw new Error("personal pipeline: strategy 'scrapeAny' requires WEB_SEARCH_API_URL/WEB_SEARCH_API_KEY to be configured");
-      return scrapeAnyDiscovery.discover(deps.scrapeAnySourcing, req.criteria, maxResults);
+      return scrapeAnyDiscovery.discover(deps.scrapeAnySourcing, searchProvider, req.criteria, maxResults);
   }
 }
 

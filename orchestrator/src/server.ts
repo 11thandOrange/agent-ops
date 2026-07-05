@@ -44,9 +44,19 @@ const config = {
   // genuinely multi-site by design. Optional: many sites need no saved
   // session at all, resolved per-hostname at the point of use.
   siteSessions: process.env.SITE_SESSIONS_DIR ? { sessionsDir: process.env.SITE_SESSIONS_DIR } : undefined,
+  // scrapeAny's search provider is chosen per-project/per-call (search_provider
+  // /searchProvider — jobs/discovery/scrapeAny.ts), not fixed here; this just
+  // bundles whichever provider credentials are actually set, so either or
+  // both can be configured independently. claude_web_search uses its own
+  // ANTHROPIC_API_KEY rather than LITELLM_VIRTUAL_KEY, since it needs a
+  // direct call to Anthropic's Messages API for the server-side web_search
+  // tool, not the OpenAI-compatible LiteLLM gateway the rest of the pipeline uses.
   scrapeAnySourcing:
-    process.env.WEB_SEARCH_API_URL && process.env.WEB_SEARCH_API_KEY
-      ? { searchApiUrl: process.env.WEB_SEARCH_API_URL, searchApiKey: process.env.WEB_SEARCH_API_KEY }
+    process.env.SERPAPI_API_KEY || process.env.ANTHROPIC_API_KEY
+      ? {
+          serpapi: process.env.SERPAPI_API_KEY ? { apiKey: process.env.SERPAPI_API_KEY } : undefined,
+          claudeWebSearch: process.env.ANTHROPIC_API_KEY ? { apiKey: process.env.ANTHROPIC_API_KEY } : undefined,
+        }
       : undefined,
   // the-store didn't exist yet when this was built — unset until the repo
   // is created and these env vars are configured; appends are skipped (with

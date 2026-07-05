@@ -1,14 +1,22 @@
 // scrapeAny strategy: no site is given — search the open web for postings
-// matching criteria. Confirmed scope: no site allowlist, truly open. Uses a
-// configurable web-search API rather than a fixed provider, since none was
-// named when this was built (mirrors sourcing/api.ts's approach to
-// sourcing an unspecified job-board API).
+// matching criteria. Confirmed scope: no site allowlist, truly open.
+//
+// The search provider is configurable and dispatched by name (not a fixed
+// vendor) — each provider is its own adapter module under providers/,
+// implementing the same (query, maxResults) => PostingCandidate[] shape,
+// so a new REST-style search API is a new small module and a config
+// switch does not need to touch the others. claude_web_search isn't even
+// a REST GET (it's an Anthropic tool-use call) — it fits the same seam
+// because the dispatcher only cares about the shared shape, not the
+// transport underneath.
 import { matchesCriteria } from "../criteria.js";
-import type { JobCriteria, PostingCandidate } from "../../types.js";
+import * as serpapi from "./providers/serpapi.js";
+import * as claudeWebSearch from "./providers/claudeWebSearch.js";
+import type { JobCriteria, PostingCandidate, SearchProviderName } from "../../types.js";
 
 export interface ScrapeAnyConfig {
-  searchApiUrl: string;
-  searchApiKey: string;
+  serpapi?: serpapi.SerpApiConfig;
+  claudeWebSearch?: claudeWebSearch.ClaudeWebSearchConfig;
 }
 
 function buildQuery(criteria: JobCriteria | undefined): string {
@@ -26,23 +34,24 @@ function buildQuery(criteria: JobCriteria | undefined): string {
 }
 
 export async function discover(
-  config: ScrapeAnyConfig,
+  config: ScrapeAnyConfig | undefined,
+  provider: SearchProviderName,
   criteria: JobCriteria | undefined,
   maxResults: number,
 ): Promise<PostingCandidate[]> {
   const query = buildQuery(criteria);
-  const res = await fetch(`${config.searchApiUrl.replace(/\/$/, "")}/search?q=${encodeURIComponent(query)}`, {
-    headers: { Authorization: `Bearer ${config.searchApiKey}` },
-  });
-  if (!res.ok) {
-    throw new Error(`scrapeAny discovery: search request failed: ${res.status} ${await res.text()}`);
-  }
-  const body = (await res.json()) as { results?: Array<{ url?: string; link?: string; title?: string; snippet?: string }> };
-  const results = body.results ?? [];
 
-  const candidates: PostingCandidate[] = results
-    .map((r) => ({ url: r.url ?? r.link ?? "", title: r.title, snippet: r.snippet }))
-    .filter((c) => c.url);
+  let candidates: PostingCandidate[];
+  switch (provider) {
+    case "serpapi":
+      if (!config?.serpapi) throw new Error("personal pipeline: search_provider 'serpapi' requires SERPAPI_API_KEY to be configured");
+      candidates = await serpapi.search(config.serpapi, query, maxResults);
+      break;
+    case "claude_web_search":
+      if (!config?.claudeWebSearch) throw new Error("personal pipeline: search_provider 'claude_web_search' requires ANTHROPIC_API_KEY to be configured");
+      candidates = await claudeWebSearch.search(config.claudeWebSearch, query, maxResults);
+      break;
+  }
 
   return candidates.filter((c) => matchesCriteria(c, criteria)).slice(0, maxResults);
 }

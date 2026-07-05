@@ -47,6 +47,7 @@ const PersonalTriggerBody = z.object({
   strategy: z.enum(["scrapeOne", "scrapeAll", "scrapeAny"]).optional(),
   criteria: JobCriteriaSchema.optional(),
   maxResults: z.number().int().positive().optional(),
+  searchProvider: z.enum(["serpapi", "claude_web_search"]).optional(),
 });
 const TriggerBody = z.discriminatedUnion("kind", [DevTriggerBody, PersonalTriggerBody]);
 
@@ -95,6 +96,7 @@ export function handleHttpTrigger(deps: HttpTriggerDeps) {
         strategy: call.strategy,
         criteria: call.criteria,
         maxResults: call.maxResults,
+        searchProvider: call.searchProvider,
       });
       res.status(200).json({ correlationId, status: "complete", result });
     } catch (err) {

@@ -24,6 +24,7 @@ export interface JobApplicationRow {
   sourceSite: string;
   strategy: string;
   sourcingMethod: string;
+  searchProvider: string; // scrapeAny only; blank for scrapeOne/scrapeAll rows
   resumeMode: string;
   coverLetterMode: string;
   correlationId: string;
@@ -50,6 +51,7 @@ const HEADER = [
   "source_site",
   "strategy",
   "sourcing_method",
+  "search_provider",
   "resume_mode",
   "cover_letter_mode",
   "correlation_id",
@@ -75,6 +77,7 @@ function rowToCsvLine(row: JobApplicationRow): string {
     row.sourceSite,
     row.strategy,
     row.sourcingMethod,
+    row.searchProvider,
     row.resumeMode,
     row.coverLetterMode,
     row.correlationId,

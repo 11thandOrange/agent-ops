@@ -54,6 +54,17 @@ An earlier version of this skill required `manual`/`api` only and forbade scrapi
 
 **(New) `sourcing_method: manual` only works with `strategy: scrapeOne`, and the pipeline now rejects the combination outright.** `manual` is pure passthrough — it returns whatever it's given *as* the posting text, without fetching anything. `scrapeAll`/`scrapeAny` hand it a bare candidate URL (found by discovery, not typed by a human), which `manual` would just hand back as if it were the posting's content. `run_personal_pipeline.ts` checks this combination before doing any other work and throws immediately rather than silently drafting from a URL string.
 
+### `scrapeAny` search provider — configurable, default `serpapi`
+
+**(New)** `scrapeAny` needed *some* way to search the open web, but no single provider was named when the strategy was built — `search_provider` in the registry entry (or a per-call `searchProvider` override) picks one, dispatched by `orchestrator/src/jobs/discovery/scrapeAny.ts` to its own adapter module under `discovery/providers/`:
+
+| Provider | How it searches | Credential |
+|---|---|---|
+| `serpapi` (**default**) | REST call to SerpAPI, which wraps Google's SERP as structured JSON (`discovery/providers/serpapi.ts`) | `SERPAPI_API_KEY` |
+| `claude_web_search` | Anthropic's server-side `web_search` tool — Claude runs the search itself and returns structured candidates (`discovery/providers/claudeWebSearch.ts`, via `integrations/anthropic.ts`) | `ANTHROPIC_API_KEY` — a direct call to Anthropic's Messages API, separate from `LITELLM_VIRTUAL_KEY`, since the LiteLLM gateway's OpenAI-compatible shape has no equivalent for Anthropic's server-tool blocks |
+
+Adding a future provider means adding one new adapter module implementing the same `(query, maxResults) => PostingCandidate[]` shape and one more case in the dispatcher — existing providers are untouched. `formFields`/`applicationSummary` drafting is unaffected either way; only *how candidates are discovered* changes.
+
 ## Output package
 
 For each job application, produce:

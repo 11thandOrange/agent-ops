@@ -50,6 +50,13 @@ export type SourcingMethod = "scraping" | "api" | "manual";
 // (an explicit, accepted choice — see the scrapeAny discovery module).
 export type Strategy = "scrapeOne" | "scrapeAll" | "scrapeAny";
 
+// Which search provider scrapeAny's discovery uses — a separate axis from
+// Strategy so a new provider (or a structurally different one, like
+// claude_web_search's Anthropic-tool-use call vs. serpapi's plain REST GET)
+// can be added without changing the strategy contract itself. Ignored by
+// scrapeOne/scrapeAll. See jobs/discovery/scrapeAny.ts and its providers/.
+export type SearchProviderName = "serpapi" | "claude_web_search";
+
 // Best-effort filter criteria for scrapeAll/scrapeAny. Matching is forgiving
 // by design: a candidate posting with no discoverable data for a given
 // criterion is not excluded on that criterion alone (scraped/searched
@@ -91,6 +98,7 @@ export interface PersonalProjectEntry {
   sourcing_method: SourcingMethod;
   strategy: Strategy;
   max_results: number; // caps scrapeAll/scrapeAny — each result costs a full model call + document renders
+  search_provider: SearchProviderName; // scrapeAny only — which search API/tool discovers candidates
 }
 
 export type ProjectEntry = DevProjectEntry | PersonalProjectEntry;

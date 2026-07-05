@@ -11,7 +11,7 @@
 import YAML from "yaml";
 import { createOrUpdateFile, getInstallationToken, type GitHubAppConfig } from "../integrations/github.js";
 import { logger } from "../logging.js";
-import type { DevProjectEntry, DocumentSource, PersonalProjectEntry, SourcingMethod, Strategy } from "../types.js";
+import type { DevProjectEntry, DocumentSource, PersonalProjectEntry, SearchProviderName, SourcingMethod, Strategy } from "../types.js";
 
 export interface ScaffoldRequest {
   name: string;
@@ -30,6 +30,7 @@ export interface ScaffoldRequest {
   sourcingMethod?: SourcingMethod;
   strategy?: Strategy;
   maxResults?: number;
+  searchProvider?: SearchProviderName;
 }
 
 export interface ScaffoldDeps {
@@ -102,6 +103,7 @@ export async function scaffoldProject(deps: ScaffoldDeps, req: ScaffoldRequest):
       sourcing_method: req.sourcingMethod ?? "manual",
       strategy: req.strategy ?? "scrapeOne",
       max_results: req.maxResults ?? 10,
+      search_provider: req.searchProvider ?? "serpapi",
     });
     await createOrUpdateFile(token, deps.controlRepoOwner, deps.controlRepoName, path, YAML.stringify(entries), `Register ${req.name} project`, deps.branch);
   }
