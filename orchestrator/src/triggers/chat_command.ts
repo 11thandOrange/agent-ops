@@ -86,7 +86,7 @@ export interface ChatCommandDeps {
   branch: string;
   personalPipeline: Pick<
     PersonalPipelineDeps,
-    "liteLLM" | "apiSourcing" | "scrapingSourcing" | "scrapeAllSourcing" | "scrapeAnySourcing" | "theStore"
+    "installationId" | "liteLLM" | "apiSourcing" | "scrapingSourcing" | "scrapeAllSourcing" | "scrapeAnySourcing" | "theStore"
   >;
 }
 
@@ -144,10 +144,13 @@ export function handleChatCommand(deps: ChatCommandDeps) {
         case "run_personal_project_pipeline": {
           const personalDeps: PersonalPipelineDeps = {
             githubApp: deps.githubApp,
-            installationId: deps.installationId,
             controlRepoOwner: deps.controlRepoOwner,
             controlRepoName: deps.controlRepoName,
             branch: deps.branch,
+            // installationId comes from deps.personalPipeline (HeyItsChloe-
+            // scoped), not the outer deps.installationId (11thandOrange,
+            // used for dev-pipeline dispatch above) — a token minted
+            // against the wrong account's installation 404s outright.
             ...deps.personalPipeline,
           };
           const result = await dispatchPersonalPipeline(personalDeps, {

@@ -32,6 +32,12 @@ jobs:
           GH_APP_ID: ${{ secrets.GH_APP_ID }}
           GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
           GH_APP_INSTALLATION_ID: ${{ secrets.GH_APP_INSTALLATION_ID_11THANDORANGE }}
+          # Separate installation (heyitschloe personal account, not the
+          # 11thandOrange org above) — the personal pipeline's GitHub calls
+          # (skill fetch from agent-ops, CSV append to the-store) both live
+          # under this account. Using the org installation for these 404s
+          # at the token-minting step, confirmed live via Cloud Run logs.
+          GH_APP_INSTALLATION_ID_PERSONAL: ${{ secrets.GH_APP_INSTALLATION_ID_HEYITSCHLOE }}
           GH_WEBHOOK_SECRET: ${{ secrets.GH_WEBHOOK_SECRET }}
           LITELLM_PROXY_URL: ${{ secrets.LITELLM_PROXY_URL }}
           LITELLM_VIRTUAL_KEY: ${{ secrets.LITELLM_VIRTUAL_KEY }}
@@ -58,6 +64,7 @@ jobs:
               "GH_APP_ID": os.environ["GH_APP_ID"],
               "GH_APP_PRIVATE_KEY": os.environ["GH_APP_PRIVATE_KEY"],
               "GH_APP_INSTALLATION_ID": os.environ["GH_APP_INSTALLATION_ID"],
+              "GH_APP_INSTALLATION_ID_PERSONAL": os.environ["GH_APP_INSTALLATION_ID_PERSONAL"],
               "GH_WEBHOOK_SECRET": os.environ["GH_WEBHOOK_SECRET"],
               "ALLOWED_MENTION_AUTHORS": "heyitschloe",
               "LITELLM_PROXY_URL": os.environ["LITELLM_PROXY_URL"],

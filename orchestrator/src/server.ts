@@ -45,6 +45,16 @@ const config = {
     privateKey: normalizedPrivateKey,
   },
   installationId: requireEnv("GH_APP_INSTALLATION_ID"),
+  // Separate from the installation above (11thandOrange org, used for dev-
+  // pipeline dispatch to app repos like BusyBuddy_v2) — the personal
+  // pipeline's very first action, regardless of sourcing method, is
+  // fetching a skill file from HeyItsChloe/agent-ops, and it later writes
+  // to HeyItsChloe/the-store. Both live under the heyitschloe personal
+  // account, a different GitHub App installation from the org one. Using
+  // the org installation for these calls 404s at the token-minting step —
+  // confirmed live via Cloud Run logs — since that installation ID simply
+  // doesn't grant access to a different account's repos.
+  personalInstallationId: requireEnv("GH_APP_INSTALLATION_ID_PERSONAL"),
   controlRepoOwner: process.env.CONTROL_REPO_OWNER ?? "HeyItsChloe",
   controlRepoName: process.env.CONTROL_REPO_NAME ?? "agent-ops",
   branch: process.env.CONTROL_REPO_BRANCH ?? "main",
@@ -95,6 +105,10 @@ const config = {
 
 const dispatchDeps = { githubApp: config.githubApp, installationId: config.installationId };
 const personalPipelineDeps = {
+  // Overrides dispatchDeps's installationId when spread after it below —
+  // the personal pipeline needs the HeyItsChloe-scoped installation, not
+  // the 11thandOrange one dev-pipeline dispatch uses.
+  installationId: config.personalInstallationId,
   liteLLM: config.liteLLM,
   apiSourcing: config.jobApiSourcing,
   scrapingSourcing: config.siteSessions,
