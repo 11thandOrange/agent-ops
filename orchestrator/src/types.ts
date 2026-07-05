@@ -57,6 +57,13 @@ export type Strategy = "scrapeOne" | "scrapeAll" | "scrapeAny";
 // scrapeOne/scrapeAll. See jobs/discovery/scrapeAny.ts and its providers/.
 export type SearchProviderName = "serpapi" | "claude_web_search";
 
+// Which provider sourcing_method: api uses to fetch a posting. Only one
+// exists today (jsearch, via API.market) — structured as an extensible
+// union, same seam as SearchProviderName above, so a second provider is a
+// new module + one more member here, not a redesign. See
+// jobs/sourcing/api/resolver.ts.
+export type ApiProviderName = "jsearch";
+
 // Which adapter sourcing_method: scraping uses to extract a posting's text
 // from a given URL. Two tiers: named adapters tuned to one specific site
 // (linkedin, glassdoor, indeed), and generic fallback adapters for anything
@@ -137,6 +144,7 @@ export interface PersonalProjectEntry {
   max_results: number; // caps scrapeAll/scrapeAny — each result costs a full model call + document renders
   search_provider: SearchProviderName; // scrapeAny only — which search API/tool discovers candidates
   scraping_adapter?: ScrapingAdapterName; // sourcing_method: scraping only — omit to auto-detect from the URL
+  api_provider?: ApiProviderName; // sourcing_method: api only — omit to use the only provider (jsearch) today
 }
 
 export type ProjectEntry = DevProjectEntry | PersonalProjectEntry;

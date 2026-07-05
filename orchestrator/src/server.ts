@@ -62,10 +62,19 @@ const config = {
   liteLLM: { proxyUrl: requireEnv("LITELLM_PROXY_URL"), virtualKey: requireEnv("LITELLM_VIRTUAL_KEY") },
   // Optional — only required if a personal project's sourcing_method actually
   // selects "api"/"scraping" at request time (checked there, not here, since
-  // most requests never need either).
-  jobApiSourcing:
-    process.env.JOB_API_BASE_URL && process.env.JOB_API_KEY
-      ? { baseUrl: process.env.JOB_API_BASE_URL, apiKey: process.env.JOB_API_KEY }
+  // most requests never need either). api_provider/apiProvider picks which
+  // provider below is used (jsearch is the only one today — jobs/sourcing/
+  // api/resolver.ts) — this just bundles whichever provider credentials are
+  // actually set, same pattern as scrapeAnySourcing below.
+  apiSourcing:
+    process.env.JSEARCH_API_KEY
+      ? {
+          jsearch: {
+            baseUrl: process.env.JSEARCH_BASE_URL ?? "https://jsearch.p.rapidapi.com",
+            apiKey: process.env.JSEARCH_API_KEY,
+            apiHost: process.env.JSEARCH_API_HOST,
+          },
+        }
       : undefined,
   // One directory of per-hostname session files (integrations/site_sessions.ts)
   // shared by both sourcing_method: scraping (per-posting fetch) and the
@@ -141,7 +150,7 @@ const personalPipelineDeps = {
   // the 11thandOrange one dev-pipeline dispatch uses.
   installationId: config.personalInstallationId,
   liteLLM: config.liteLLM,
-  apiSourcing: config.jobApiSourcing,
+  apiSourcing: config.apiSourcing,
   scrapingSourcing: config.siteSessions,
   scrapeAllSourcing: config.siteSessions,
   scrapeAnySourcing: config.scrapeAnySourcing,

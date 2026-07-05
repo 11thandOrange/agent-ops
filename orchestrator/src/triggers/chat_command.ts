@@ -62,6 +62,7 @@ const RunPersonalProjectPipeline = z.object({
   maxResults: z.number().int().positive().optional(),
   searchProvider: z.enum(["serpapi", "claude_web_search"]).optional(),
   scrapingAdapter: z.enum(["linkedin", "glassdoor", "indeed", "generic-one-page-app", "generic-multistep-app"]).optional(),
+  apiProvider: z.enum(["jsearch"]).optional(),
 });
 
 const ToolCallBody = z.discriminatedUnion("tool", [
@@ -167,6 +168,7 @@ export function handleChatCommand(deps: ChatCommandDeps) {
             maxResults: call.maxResults,
             searchProvider: call.searchProvider,
             scrapingAdapter: call.scrapingAdapter,
+            apiProvider: call.apiProvider,
           });
           const csvUrl = deps.personalPipeline.theStore ? theStoreFileUrl(deps.personalPipeline.theStore) : undefined;
           res.status(200).json({ correlationId, status: "complete", result, csvUrl });

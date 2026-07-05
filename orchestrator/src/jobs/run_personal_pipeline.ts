@@ -17,7 +17,7 @@ import * as apiSourcing from "./sourcing/api.js";
 import * as scrapingSourcing from "./sourcing/scraping.js";
 import * as scrapeAllDiscovery from "./discovery/scrapeAll.js";
 import * as scrapeAnyDiscovery from "./discovery/scrapeAny.js";
-import type { ApplicantProfile, DocumentSource, JobCriteria, PostingCandidate, ScrapingAdapterName, SearchProviderName, SourcingMethod, Strategy } from "../types.js";
+import type { ApiProviderName, ApplicantProfile, DocumentSource, JobCriteria, PostingCandidate, ScrapingAdapterName, SearchProviderName, SourcingMethod, Strategy } from "../types.js";
 
 export interface PersonalPipelineDeps {
   githubApp: GitHubAppConfig;
@@ -55,6 +55,7 @@ export interface PersonalPipelineRequest {
   maxResults?: number;
   searchProvider?: SearchProviderName; // scrapeAny only
   scrapingAdapter?: ScrapingAdapterName; // sourcing_method: scraping only
+  apiProvider?: ApiProviderName; // sourcing_method: api only
 }
 
 export interface DocumentResult {
@@ -110,6 +111,7 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
   const maxResults = req.maxResults ?? entry.max_results;
   const searchProvider = req.searchProvider ?? entry.search_provider;
   const scrapingAdapter = req.scrapingAdapter ?? entry.scraping_adapter;
+  const apiProvider = req.apiProvider ?? entry.api_provider;
 
   // manual sourcing is pure passthrough — it returns whatever it's given AS
   // the posting text, without fetching anything. scrapeAll/scrapeAny hand
@@ -159,7 +161,7 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
   for (const candidate of candidates) {
     try {
       const sourceRequest = candidate?.url ?? req.request;
-      const posting = await gatherPosting(deps, sourcingMethod, { request: sourceRequest }, scrapingAdapter);
+      const posting = await gatherPosting(deps, sourcingMethod, { request: sourceRequest }, scrapingAdapter, apiProvider);
 
       const draft = await draftPackage(
         deps.liteLLM,
@@ -261,13 +263,13 @@ async function gatherPosting(
   method: SourcingMethod,
   input: { request: string },
   scrapingAdapter?: ScrapingAdapterName,
+  apiProvider?: ApiProviderName,
 ) {
   switch (method) {
     case "manual":
       return manualSourcing.gatherPosting(input);
     case "api":
-      if (!deps.apiSourcing) throw new Error("personal pipeline: sourcing_method 'api' requires JOB_API_BASE_URL/JOB_API_KEY to be configured");
-      return apiSourcing.gatherPosting(deps.apiSourcing, input);
+      return apiSourcing.gatherPosting(deps.apiSourcing, input, apiProvider);
     case "scraping":
       // No hard requirement on deps.scrapingSourcing — same as scrapeAll's
       // discovery below: not every site needs, or has, a saved session

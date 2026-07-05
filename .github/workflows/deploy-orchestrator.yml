@@ -45,8 +45,9 @@ jobs:
           # server.ts by presence. Previously missing from this workflow
           # entirely: setting these as GitHub Secrets alone never reached the
           # deployed service until this step actually forwarded them too.
-          JOB_API_BASE_URL: ${{ secrets.JOB_API_BASE_URL }}
-          JOB_API_KEY: ${{ secrets.JOB_API_KEY }}
+          JSEARCH_API_KEY: ${{ secrets.JSEARCH_API_KEY }}
+          JSEARCH_BASE_URL: ${{ secrets.JSEARCH_BASE_URL }}
+          JSEARCH_API_HOST: ${{ secrets.JSEARCH_API_HOST }}
           SITE_SESSIONS_DIR: ${{ secrets.SITE_SESSIONS_DIR }}
           SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -100,7 +101,7 @@ jobs:
           # string isn't nullish, so those defaults wouldn't kick in).
           # Omitting the key entirely when unset avoids that.
           optional = [
-              "JOB_API_BASE_URL", "JOB_API_KEY",
+              "JSEARCH_API_KEY", "JSEARCH_BASE_URL", "JSEARCH_API_HOST",
               "SITE_SESSIONS_DIR",
               "SERPAPI_API_KEY", "ANTHROPIC_API_KEY",
               "THE_STORE_OWNER", "THE_STORE_REPO", "THE_STORE_BRANCH", "THE_STORE_PATH",
