@@ -21,7 +21,15 @@ const config = {
   githubWebhookSecret: requireEnv("GH_WEBHOOK_SECRET"),
   githubApp: {
     appId: requireEnv("GH_APP_ID"),
-    privateKey: requireEnv("GH_APP_PRIVATE_KEY"),
+    // GitHub App private keys are multi-line PEM, but env vars/GitHub
+    // Secrets/YAML round-trips (deploy-orchestrator.yml's env-vars-file
+    // step) can flatten real newlines into literal "\n" text along the way
+    // — jsonwebtoken's RS256 signer then rejects the key outright
+    // ("secretOrPrivateKey must be an asymmetric key when using RS256"),
+    // confirmed live via Cloud Run logs. This restores real newlines when
+    // they were flattened; it's a no-op when they weren't (a literal "\n"
+    // two-char sequence never matches an actual newline character).
+    privateKey: requireEnv("GH_APP_PRIVATE_KEY").replace(/\\n/g, "\n"),
   },
   installationId: requireEnv("GH_APP_INSTALLATION_ID"),
   controlRepoOwner: process.env.CONTROL_REPO_OWNER ?? "HeyItsChloe",
