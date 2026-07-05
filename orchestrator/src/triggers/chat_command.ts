@@ -8,6 +8,7 @@ import { createTicket, getInstallationToken, getIssue, labelIssue, type GitHubAp
 import { dispatchImplement } from "../jobs/implement_ticket.js";
 import { dispatchPlan } from "../jobs/plan_ticket.js";
 import { dispatchPersonalPipeline, type PersonalPipelineDeps } from "../jobs/run_personal_pipeline.js";
+import { theStoreFileUrl } from "../integrations/the_store.js";
 import { scaffoldProject, type ScaffoldDeps } from "../jobs/scaffold_project.js";
 import { logger, newCorrelationId } from "../logging.js";
 
@@ -162,7 +163,8 @@ export function handleChatCommand(deps: ChatCommandDeps) {
             maxResults: call.maxResults,
             searchProvider: call.searchProvider,
           });
-          res.status(200).json({ correlationId, status: "complete", result });
+          const csvUrl = deps.personalPipeline.theStore ? theStoreFileUrl(deps.personalPipeline.theStore) : undefined;
+          res.status(200).json({ correlationId, status: "complete", result, csvUrl });
           return;
         }
         case "scaffold_project": {

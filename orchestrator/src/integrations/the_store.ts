@@ -13,6 +13,13 @@ export interface TheStoreConfig {
   path: string; // e.g. "projects/job-applications/job-app-results.csv"
 }
 
+// A viewable GitHub URL for the CSV, not an API endpoint — for surfacing in
+// trigger responses so a curl/Postman/chat caller can jump straight to the
+// file instead of having to know owner/repo/branch/path themselves.
+export function theStoreFileUrl(config: TheStoreConfig): string {
+  return `https://github.com/${config.owner}/${config.repo}/blob/${config.branch}/${config.path}`;
+}
+
 export interface JobApplicationRow {
   dateApplied: string;
   company: string;
