@@ -233,7 +233,13 @@ async function gatherPosting(deps: PersonalPipelineDeps, method: SourcingMethod,
       if (!deps.apiSourcing) throw new Error("personal pipeline: sourcing_method 'api' requires JOB_API_BASE_URL/JOB_API_KEY to be configured");
       return apiSourcing.gatherPosting(deps.apiSourcing, input);
     case "scraping":
-      if (!deps.scrapingSourcing) throw new Error("personal pipeline: sourcing_method 'scraping' requires SITE_SESSIONS_DIR to be configured");
+      // No hard requirement on deps.scrapingSourcing — same as scrapeAll's
+      // discovery below: not every site needs, or has, a saved session
+      // (resolveStorageState degrades to unauthenticated when neither the
+      // config nor that hostname's file is present). Previously this threw
+      // outright whenever SITE_SESSIONS_DIR was unset at all, even for a
+      // plain public posting with no login wall — found live against a
+      // non-LinkedIn, unauthenticated careers-site posting.
       return scrapingSourcing.gatherPosting(deps.scrapingSourcing, input);
   }
 }

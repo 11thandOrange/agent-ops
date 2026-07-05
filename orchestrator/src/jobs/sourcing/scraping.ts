@@ -27,7 +27,7 @@ export type ScrapingSourcingConfig = SiteSessionsConfig;
 
 const URL_PATTERN = /https?:\/\/\S+/;
 
-export async function gatherPosting(config: ScrapingSourcingConfig, input: SourcingInput): Promise<SourcingResult> {
+export async function gatherPosting(config: ScrapingSourcingConfig | undefined, input: SourcingInput): Promise<SourcingResult> {
   const match = input.request.match(URL_PATTERN);
   if (!match) {
     throw new Error("scraping sourcing: the chat request must contain the job posting URL");
