@@ -1,15 +1,14 @@
-// JSearch (via API.market / the RapidAPI marketplace) provider for
+// JSearch (OpenWebNinja's Job Search API, via API.market) provider for
 // sourcing_method: api.
 //
-// Contract below is the well-known RapidAPI-hosted JSearch API (from
-// training knowledge) — NOT verified live against API.market specifically.
-// This sandbox has no outbound network access to arbitrary external sites
-// to confirm it (WebFetch to api.market and rapidapi.com both returned
-// 403). API.market may proxy the identical underlying API with a
-// different base URL or header scheme. baseUrl and apiHost are both
-// config, not hardcoded, specifically so a mismatch against your actual
-// subscription is a config fix, not a code change — verify against your
-// API.market dashboard before relying on this.
+// Verified live: GET {baseUrl}/search?query=...&num_pages=1, authenticated
+// with a single `x-api-market-key` header (not RapidAPI's two-header
+// X-RapidAPI-Key/X-RapidAPI-Host scheme — this is API.market's own REST
+// gateway, a different product from RapidAPI-hosted JSearch, confirmed via
+// a real request/response captured from the API.market playground).
+// Response is `{ status, data: [...] }`; each job's shape (job_title,
+// job_description, job_apply_link, job_google_link, etc.) matches what's
+// parsed below.
 //
 // Same pattern as sourcing/api.ts's original generic placeholder: the
 // free-text request is treated as a search query, not a specific known
@@ -18,9 +17,8 @@
 import type { SourcingInput, SourcingResult } from "../../types.js";
 
 export interface JSearchConfig {
-  baseUrl: string; // e.g. "https://jsearch.p.rapidapi.com" — confirm against your API.market dashboard
-  apiKey: string;
-  apiHost?: string; // X-RapidAPI-Host value, if your gateway needs one separate from baseUrl's hostname
+  baseUrl: string; // e.g. "https://prod.api.market/api/v1/openwebninja/jobsearch"
+  apiKey: string; // sent as the x-api-market-key header
 }
 
 interface JSearchJob {
@@ -46,10 +44,7 @@ export async function gatherPosting(config: JSearchConfig, input: SourcingInput)
   url.searchParams.set("num_pages", "1");
 
   const res = await fetch(url.toString(), {
-    headers: {
-      "X-RapidAPI-Key": config.apiKey,
-      "X-RapidAPI-Host": config.apiHost ?? new URL(config.baseUrl).hostname,
-    },
+    headers: { "x-api-market-key": config.apiKey },
   });
   if (!res.ok) {
     throw new Error(`jsearch sourcing: request failed: ${res.status} ${await res.text()}`);

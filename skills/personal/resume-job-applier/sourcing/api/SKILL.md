@@ -14,10 +14,10 @@ Clears the ToS concern the same way `manual` does, but automates the fetch: call
 
 | Provider | Fetches via | Credential |
 |---|---|---|
-| `jsearch` (**default, only provider today**) | JSearch (via API.market — a RapidAPI-marketplace-hosted job search API), `sourcing/api/providers/jsearch.ts` | `JSEARCH_API_KEY` (+ optional `JSEARCH_BASE_URL`/`JSEARCH_API_HOST`) |
+| `jsearch` (**default, only provider today**) | OpenWebNinja's Job Search API, via API.market (`sourcing/api/providers/jsearch.ts`) | `JSEARCH_API_KEY` (+ optional `JSEARCH_BASE_URL`) |
 
-The chat request's free text is treated as a search query (title, company, location, etc.) against JSearch's `/search` endpoint — the first matching result's `job_description` is used as the posting text, and `job_apply_link`/`job_google_link` (whichever is present) becomes `sourceUrl`.
+The chat request's free text is treated as a search query (title, company, location, etc.) against a `GET {JSEARCH_BASE_URL}/search` request — the first matching result's `job_description` is used as the posting text, and `job_apply_link`/`job_google_link` (whichever is present) becomes `sourceUrl`.
 
-**Caveat, confirmed during planning:** the JSearch contract implemented here comes from the well-known RapidAPI-hosted JSearch API (training knowledge) — it has not been verified live against API.market specifically, since this environment has no outbound network access to `api.market`/`rapidapi.com` to confirm it. `JSEARCH_BASE_URL`/`JSEARCH_API_HOST` are both configurable specifically so a mismatch against your actual API.market subscription is a config fix, not a code change — verify against your dashboard before relying on it in production.
+**Contract confirmed live** (a real request/response was captured from the API.market playground during development, not just documentation): base URL `https://prod.api.market/api/v1/openwebninja/jobsearch`, authenticated with a single `x-api-market-key` header — this is API.market's own REST gateway, not RapidAPI's differently-hosted JSearch product, so it does not use RapidAPI's `X-RapidAPI-Key`/`X-RapidAPI-Host` header pair. Response shape is `{ status, data: [...] }`, each job carrying `job_title`, `employer_name`, `job_description`, `job_apply_link`, `job_google_link`, etc. — matches what `jsearch.ts` parses.
 
 Adding a future provider (a different job-search API) means adding one new module implementing `(config, input) => SourcingResult` under `sourcing/api/providers/` and one more case in `sourcing/api/resolver.ts`'s `gatherWithProvider` — the `api.ts` entry point and every other provider are untouched.

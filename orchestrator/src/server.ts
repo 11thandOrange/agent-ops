@@ -70,9 +70,8 @@ const config = {
     process.env.JSEARCH_API_KEY
       ? {
           jsearch: {
-            baseUrl: process.env.JSEARCH_BASE_URL ?? "https://jsearch.p.rapidapi.com",
+            baseUrl: process.env.JSEARCH_BASE_URL ?? "https://prod.api.market/api/v1/openwebninja/jobsearch",
             apiKey: process.env.JSEARCH_API_KEY,
-            apiHost: process.env.JSEARCH_API_HOST,
           },
         }
       : undefined,
