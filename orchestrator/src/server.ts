@@ -15,21 +15,34 @@ function requireEnv(name: string): string {
   return value;
 }
 
+const rawPrivateKey = requireEnv("GH_APP_PRIVATE_KEY");
+const normalizedPrivateKey = rawPrivateKey.replace(/\\n/g, "\n");
+// One-time, safe-to-log diagnostic (shape only — never the key content
+// itself) for the persistent "secretOrPrivateKey must be an asymmetric key
+// when using RS256" error seen live via Cloud Run logs. The \n-flattening
+// theory below didn't fix it on the last deploy, so this reveals what's
+// actually in the env var instead of guessing again: does it even start
+// with a PEM header, what's its length, does it contain literal "\n" text
+// vs. real newline characters.
+logger.info("GH_APP_PRIVATE_KEY diagnostic", {
+  rawLength: rawPrivateKey.length,
+  normalizedLength: normalizedPrivateKey.length,
+  rawStartsWithPemHeader: rawPrivateKey.trimStart().startsWith("-----BEGIN"),
+  normalizedStartsWithPemHeader: normalizedPrivateKey.trimStart().startsWith("-----BEGIN"),
+  rawEndsWithPemFooter: rawPrivateKey.trimEnd().endsWith("-----"),
+  containsLiteralBackslashN: rawPrivateKey.includes("\\n"),
+  containsRealNewlineAfterNormalize: normalizedPrivateKey.includes("\n"),
+  firstTenChars: JSON.stringify(rawPrivateKey.slice(0, 10)),
+  lastTenChars: JSON.stringify(rawPrivateKey.slice(-10)),
+});
+
 const config = {
   port: Number(process.env.PORT ?? 3000),
   sharedSecret: requireEnv("ORCHESTRATOR_SHARED_SECRET"),
   githubWebhookSecret: requireEnv("GH_WEBHOOK_SECRET"),
   githubApp: {
     appId: requireEnv("GH_APP_ID"),
-    // GitHub App private keys are multi-line PEM, but env vars/GitHub
-    // Secrets/YAML round-trips (deploy-orchestrator.yml's env-vars-file
-    // step) can flatten real newlines into literal "\n" text along the way
-    // — jsonwebtoken's RS256 signer then rejects the key outright
-    // ("secretOrPrivateKey must be an asymmetric key when using RS256"),
-    // confirmed live via Cloud Run logs. This restores real newlines when
-    // they were flattened; it's a no-op when they weren't (a literal "\n"
-    // two-char sequence never matches an actual newline character).
-    privateKey: requireEnv("GH_APP_PRIVATE_KEY").replace(/\\n/g, "\n"),
+    privateKey: normalizedPrivateKey,
   },
   installationId: requireEnv("GH_APP_INSTALLATION_ID"),
   controlRepoOwner: process.env.CONTROL_REPO_OWNER ?? "HeyItsChloe",
