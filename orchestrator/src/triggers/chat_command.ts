@@ -60,7 +60,7 @@ const RunPersonalProjectPipeline = z.object({
   strategy: z.enum(["scrapeOne", "scrapeAll", "scrapeAny"]).optional(),
   criteria: JobCriteriaSchema.optional(),
   maxResults: z.number().int().positive().optional(),
-  searchProvider: z.enum(["serpapi", "claude_web_search"]).optional(),
+  searchProvider: z.enum(["serpapi", "claude_web_search", "jsearch"]).optional(),
   scrapingAdapter: z.enum(["linkedin", "glassdoor", "indeed", "generic-one-page-app", "generic-multistep-app"]).optional(),
   apiProvider: z.enum(["jsearch"]).optional(),
 });

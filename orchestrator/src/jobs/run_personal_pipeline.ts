@@ -8,7 +8,7 @@ import { chatCompletion, type LiteLLMConfig } from "../integrations/litellm.js";
 import { parseModelJson } from "../integrations/llmJson.js";
 import { getFileContents, getInstallationToken, type GitHubAppConfig } from "../integrations/github.js";
 import { renderTextToPdf } from "../integrations/pdf.js";
-import { appendJobApplicationRow, type TheStoreConfig } from "../integrations/the_store.js";
+import { appendJobApplicationRow, findStoredApplicationByUrl, loadStoredApplications, type TheStoreConfig } from "../integrations/the_store.js";
 import { fetchResumeText } from "../integrations/google_drive.js";
 import { logger } from "../logging.js";
 import { loadPersonalProject } from "../registry/load.js";
@@ -139,7 +139,25 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
   );
 
   log.info("discovering postings", { strategy, sourcingMethod, maxResults, searchProvider });
-  const candidates = await discoverCandidates(deps, strategy, req, entry.model_profile, maxResults, searchProvider);
+  let candidates = await discoverCandidates(deps, strategy, req, entry.model_profile, maxResults, searchProvider);
+
+  // Applies to every scrapeAll/scrapeAny call, not just scheduled ones —
+  // scrapeOne's candidate is always undefined (no discovery step), so this
+  // is a no-op there. Skipped entirely (not just gracefully) when the-store
+  // isn't configured, same fail-open posture as every other the-store
+  // touchpoint — a broken/unreachable CSV never blocks drafting.
+  if (deps.theStore && candidates.some((c) => c !== undefined)) {
+    try {
+      const applications = await loadStoredApplications(deps.githubApp, deps.installationId, deps.theStore);
+      const before = candidates.length;
+      candidates = candidates.filter((c) => !c || !findStoredApplicationByUrl(applications, c.url));
+      if (candidates.length !== before) {
+        log.info("deduped candidates already present in the-store", { before, after: candidates.length });
+      }
+    } catch (err) {
+      log.warn("failed to load the-store for dedup — continuing without it", { error: String(err) });
+    }
+  }
 
   const needsResume = resumeSource.mode === "generated_pdf";
   const needsCoverLetter = coverLetterSource.mode === "generated_pdf";

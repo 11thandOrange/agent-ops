@@ -37,6 +37,22 @@ export function githubWebhookAuth(webhookSecret: string) {
   };
 }
 
+// Separate credential from sharedSecretAuth above — the Chrome extension's
+// code/storage is inspectable by anyone who unpacks it, unlike a server-side
+// env var, so it gets its own dedicated, narrowly-scoped key (read-only
+// lookup endpoint only) rather than reusing ORCHESTRATOR_SHARED_SECRET.
+export function extensionAuth(expectedKey: string) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const provided = req.header("x-extension-api-key");
+    if (!provided || !safeEqual(provided, expectedKey)) {
+      logger.warn("rejected unauthenticated extension request", { path: req.path });
+      res.status(401).json({ error: "unauthorized" });
+      return;
+    }
+    next();
+  };
+}
+
 /** Checks a commenter's GitHub login against the allowlist before honoring an @mention (§4.1). */
 export function isAllowedMentionAuthor(login: string, allowlist: readonly string[]): boolean {
   return allowlist.some((allowed) => allowed.toLowerCase() === login.toLowerCase());

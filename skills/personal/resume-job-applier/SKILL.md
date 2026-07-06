@@ -50,7 +50,9 @@ An earlier version of this skill required `manual`/`api` only and forbade scrapi
 
 `scrapeAll`/`scrapeAny` can each cost up to `max_results` full model calls + document renders in one run — capped (default 10, per-call override via `maxResults`) precisely because of that cost, not as an arbitrary limit.
 
-`criteria` (title, location, remote, salary range, skills, keywords, websites, date posted, company, whitelist/blacklist) filters candidates found by `scrapeAll`/`scrapeAny` — matching is deliberately forgiving (see `orchestrator/src/jobs/criteria.ts`): a candidate missing data for a criterion isn't excluded on that criterion alone, since scraped/searched metadata is often incomplete. Only blacklist matches and clear contradictions exclude a candidate.
+`criteria` (title, location, remote, salary range via `salaryMin`/`salaryMax`, skills, keywords, websites, date posted, company, whitelist/blacklist) filters candidates found by `scrapeAll`/`scrapeAny` — matching is deliberately forgiving (see `orchestrator/src/jobs/criteria.ts`): a candidate missing data for a criterion isn't excluded on that criterion alone, since scraped/searched metadata is often incomplete. Only blacklist matches and clear contradictions exclude a candidate. **(Revised)** `salaryMin`/`salaryMax` were accepted on every input surface from the start but silently had no effect — now parsed against whatever free-text salary string the candidate has (`"70K–110K a year"`, `"$120,000 - $150,000"`, etc.) and excluded only on a clear non-overlapping range, same forgiving default as everything else here.
+
+**(New) Dedup against the-store**: before drafting, `scrapeAll`/`scrapeAny` candidates are filtered against every application already recorded in the-store's CSV — matched by exact `source_url` first, a normalized (scheme+host+path, no query string) fallback second. Applies to every `scrapeAll`/`scrapeAny` call, manual or scheduled, not just the daily automation below. Skipped entirely (not a failure) when the-store isn't configured, or if the CSV can't be loaded for some reason — dedup degrades gracefully, it never blocks a run.
 
 **(New) `sourcing_method: manual` only works with `strategy: scrapeOne`, and the pipeline now rejects the combination outright.** `manual` is pure passthrough — it returns whatever it's given *as* the posting text, without fetching anything. `scrapeAll`/`scrapeAny` hand it a bare candidate URL (found by discovery, not typed by a human), which `manual` would just hand back as if it were the posting's content. `run_personal_pipeline.ts` checks this combination before doing any other work and throws immediately rather than silently drafting from a URL string.
 
@@ -62,6 +64,7 @@ An earlier version of this skill required `manual`/`api` only and forbade scrapi
 |---|---|---|
 | `serpapi` (**default**) | REST call to SerpAPI, which wraps Google's SERP as structured JSON (`discovery/providers/serpapi.ts`) | `SERPAPI_API_KEY` |
 | `claude_web_search` | Anthropic's server-side `web_search` tool — Claude runs the search itself and returns structured candidates (`discovery/providers/claudeWebSearch.ts`, via `integrations/anthropic.ts`) | `ANTHROPIC_API_KEY` — a direct call to Anthropic's Messages API, separate from `LITELLM_VIRTUAL_KEY`, since the LiteLLM gateway's OpenAI-compatible shape has no equivalent for Anthropic's server-tool blocks |
+| `jsearch` (**New**) | Direct call to OpenWebNinja's Job Search API via API.market, the same one `sourcing/api`'s jsearch provider uses (`discovery/providers/jsearch.ts`) — discovery still only returns candidate metadata, not posting text; a later `sourcing_method: api` call re-queries JSearch per candidate for the actual text, an accepted redundant call kept for consistency with how every other provider works | `JSEARCH_API_KEY` — same credential as `sourcing_method: api`'s jsearch provider, no separate key needed |
 
 Adding a future provider means adding one new adapter module implementing the same `(query, maxResults) => PostingCandidate[]` shape and one more case in the dispatcher — existing providers are untouched. `formFields`/`applicationSummary` drafting is unaffected either way; only *how candidates are discovered* changes.
 
@@ -98,6 +101,16 @@ Return the package(s) in the same chat thread that made the request — there is
 ## Apply-assist — prefilling the form when you open the link
 
 **(New)** `job-application-form-prefill/SKILL.md` documents a local companion script (`orchestrator/scripts/job-application-form-prefill.mjs`) you run yourself: it opens a job link in a visible browser using your saved session, fills the form from a package's `formFields`, and stops — you review and submit yourself in that same window. It is **fill-only, permanently, as confirmed during planning** — no flag or future mode should make it submit; revisiting that is a separate, explicit future decision, not something to build quietly into this script.
+
+## Chrome extension — autofill when you return to an already-sourced job link
+
+**(New)** a separate repo, `heyitschloe/extensions`, holds a Chrome extension that autofills a job application form when you open a link that's already been run through this pipeline (i.e. has a matching row in the-store) — a second, lighter-weight alternative to running `job-application-form-prefill.mjs` yourself. Same hard guardrails as everything else in this skill: fill-only, permanently (no submit code path, ever), and file-upload fields are always skipped — attachments stay 100% manual, same as every other surface in this pipeline.
+
+On page load, the extension calls the orchestrator's `GET /personal-projects/:project/applications?url=<current tab URL>` endpoint (`orchestrator/src/triggers/applications_lookup.ts`). Matching is exact `source_url` first, normalized (scheme+host+path) fallback second — the same logic the dedup filter above uses. If found, the response's `formFields` drives the fill; if not found, the extension does nothing. This endpoint is authenticated separately from every other one — `EXTENSION_API_KEY`, not `ORCHESTRATOR_SHARED_SECRET` — since the extension's code/storage is inspectable in a way a server-side env var isn't; the endpoint isn't mounted at all while `EXTENSION_API_KEY` is unset.
+
+## Scheduled automation — daily scrapeAny (jsearch)
+
+**(New)** one scheduled automation exists: `strategy: scrapeAny` with `search_provider: jsearch`, criteria baked directly into the trigger's own prompt/payload (not a new registry concept), running daily. It dedupes against the-store like every other `scrapeAny` call — see above — so a still-posted job from yesterday's run doesn't get redrafted every day. Delivery is a `create_trigger` bound (`persistent_session_id`) to a dedicated session created specifically for this automation, separate from any interactive build/chat session — every firing resumes that same conversation, so results land in one consistent place rather than nowhere (an unattended cron has no chat thread to reply into otherwise).
 
 ## Storage — the-store
 

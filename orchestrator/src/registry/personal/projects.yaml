@@ -28,7 +28,9 @@
   # request.
   max_results: 10
   # Which search provider scrapeAny uses to discover candidates: serpapi
-  # (requires SERPAPI_API_KEY) or claude_web_search (Anthropic's server-side
+  # (requires SERPAPI_API_KEY), claude_web_search (Anthropic's server-side
   # web_search tool, requires ANTHROPIC_API_KEY instead — no separate search
-  # vendor). Ignored by scrapeOne/scrapeAll. Override per request.
+  # vendor), or jsearch (OpenWebNinja's job-search API via API.market,
+  # requires JSEARCH_API_KEY — same credential as sourcing_method: api's
+  # jsearch provider). Ignored by scrapeOne/scrapeAll. Override per request.
   search_provider: serpapi

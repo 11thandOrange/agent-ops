@@ -21,16 +21,41 @@ export interface JSearchConfig {
   apiKey: string; // sent as the x-api-market-key header
 }
 
-interface JSearchJob {
+export interface JSearchJob {
   job_title?: string;
   employer_name?: string;
   job_description?: string;
   job_apply_link?: string;
   job_google_link?: string;
+  job_city?: string;
+  job_state?: string;
+  job_country?: string;
+  job_is_remote?: boolean;
+  job_salary_string?: string;
+  job_posted_at_datetime_utc?: string;
 }
 
 interface JSearchSearchResponse {
   data?: JSearchJob[];
+}
+
+// Shared by sourcing (gatherPosting, below — takes the first result) and
+// discovery/providers/jsearch.ts's search_provider adapter (takes many) —
+// both hit the identical /search endpoint with the same credentials, only
+// how many pages they ask for and what they do with the results differs.
+export async function searchJobs(config: JSearchConfig, query: string, numPages: number): Promise<JSearchJob[]> {
+  const url = new URL(`${config.baseUrl.replace(/\/$/, "")}/search`);
+  url.searchParams.set("query", query);
+  url.searchParams.set("num_pages", String(numPages));
+
+  const res = await fetch(url.toString(), {
+    headers: { "x-api-market-key": config.apiKey },
+  });
+  if (!res.ok) {
+    throw new Error(`jsearch: request failed: ${res.status} ${await res.text()}`);
+  }
+  const body = (await res.json()) as JSearchSearchResponse;
+  return body.data ?? [];
 }
 
 export async function gatherPosting(config: JSearchConfig, input: SourcingInput): Promise<SourcingResult> {
@@ -39,18 +64,8 @@ export async function gatherPosting(config: JSearchConfig, input: SourcingInput)
     throw new Error("jsearch sourcing: the request must contain a search query (title, company, location, etc.)");
   }
 
-  const url = new URL(`${config.baseUrl.replace(/\/$/, "")}/search`);
-  url.searchParams.set("query", query);
-  url.searchParams.set("num_pages", "1");
-
-  const res = await fetch(url.toString(), {
-    headers: { "x-api-market-key": config.apiKey },
-  });
-  if (!res.ok) {
-    throw new Error(`jsearch sourcing: request failed: ${res.status} ${await res.text()}`);
-  }
-  const body = (await res.json()) as JSearchSearchResponse;
-  const job = body.data?.[0];
+  const jobs = await searchJobs(config, query, 1);
+  const job = jobs[0];
   if (!job?.job_description) {
     throw new Error(`jsearch sourcing: no matching posting found for query "${query}"`);
   }

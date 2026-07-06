@@ -103,7 +103,7 @@ export function buildMcpServer(config: McpBridgeConfig): McpServer {
         "strategy scrapeOne: request is a pasted posting or its URL, one application produced. " +
         "scrapeAll: request is a job-site URL to crawl, up to maxResults applications produced from matches. " +
         "scrapeAny: request is ignored, criteria drives an open web search (no site allowlist), up to maxResults applications produced — " +
-        "searchProvider picks which search API/tool runs that discovery: serpapi (REST search API) or claude_web_search (Anthropic's server-side web_search tool, no separate search vendor needed). " +
+        "searchProvider picks which search API/tool runs that discovery: serpapi (REST search API), claude_web_search (Anthropic's server-side web_search tool, no separate search vendor needed), or jsearch (OpenWebNinja's job-search API via API.market — same credentials as sourcing_method api's jsearch provider). " +
         "sourcing_method scraping uses scrapingAdapter (or auto-detects from the URL's hostname) to pick how the posting text is extracted: linkedin/glassdoor/indeed are named adapters, generic-one-page-app/generic-multistep-app are fallbacks for any other site (e.g. a posting on a company's own careers site). " +
         "sourcing_method api uses apiProvider to pick which authorized job-search API fetches the posting — jsearch (via API.market) is the only provider today.",
       inputSchema: {
@@ -117,7 +117,7 @@ export function buildMcpServer(config: McpBridgeConfig): McpServer {
         criteria: jobCriteriaSchema.optional().describe("scrapeAll/scrapeAny only — filters candidate postings"),
         maxResults: z.number().int().positive().optional().describe("scrapeAll/scrapeAny only — caps applications produced, overrides the registry default"),
         searchProvider: z
-          .enum(["serpapi", "claude_web_search"])
+          .enum(["serpapi", "claude_web_search", "jsearch"])
           .optional()
           .describe("scrapeAny only — which search provider discovers candidates, overrides the registry's search_provider default"),
         scrapingAdapter: z

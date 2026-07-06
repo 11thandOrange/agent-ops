@@ -55,7 +55,10 @@ export type Strategy = "scrapeOne" | "scrapeAll" | "scrapeAny";
 // claude_web_search's Anthropic-tool-use call vs. serpapi's plain REST GET)
 // can be added without changing the strategy contract itself. Ignored by
 // scrapeOne/scrapeAll. See jobs/discovery/scrapeAny.ts and its providers/.
-export type SearchProviderName = "serpapi" | "claude_web_search";
+// jsearch reuses the same JSearch credentials as sourcing_method: api's
+// jsearch provider — discovery here still only returns candidate metadata,
+// not posting text, same as every other provider.
+export type SearchProviderName = "serpapi" | "claude_web_search" | "jsearch";
 
 // Which provider sourcing_method: api uses to fetch a posting. Only one
 // exists today (jsearch, via API.market) — structured as an extensible
@@ -142,7 +145,7 @@ export interface PersonalProjectEntry {
   sourcing_method: SourcingMethod;
   strategy: Strategy;
   max_results: number; // caps scrapeAll/scrapeAny — each result costs a full model call + document renders
-  search_provider: SearchProviderName; // scrapeAny only — which search API/tool discovers candidates
+  search_provider: SearchProviderName; // scrapeAny only — which search API/tool discovers candidates (serpapi | claude_web_search | jsearch)
   scraping_adapter?: ScrapingAdapterName; // sourcing_method: scraping only — omit to auto-detect from the URL
   api_provider?: ApiProviderName; // sourcing_method: api only — omit to use the only provider (jsearch) today
 }

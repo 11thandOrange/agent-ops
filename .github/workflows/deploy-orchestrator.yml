@@ -54,6 +54,7 @@ jobs:
           THE_STORE_REPO: ${{ secrets.THE_STORE_REPO }}
           THE_STORE_BRANCH: ${{ secrets.THE_STORE_BRANCH }}
           THE_STORE_PATH: ${{ secrets.THE_STORE_PATH }}
+          EXTENSION_API_KEY: ${{ secrets.EXTENSION_API_KEY }}
           # (New) applicant background for drafting — gated as a whole in
           # server.ts by the five required fields all being set.
           APPLICANT_FIRST_NAME: ${{ secrets.APPLICANT_FIRST_NAME }}
@@ -104,6 +105,7 @@ jobs:
               "SITE_SESSIONS_DIR",
               "SERPAPI_API_KEY", "ANTHROPIC_API_KEY",
               "THE_STORE_OWNER", "THE_STORE_REPO", "THE_STORE_BRANCH", "THE_STORE_PATH",
+              "EXTENSION_API_KEY",
               "APPLICANT_FIRST_NAME", "APPLICANT_LAST_NAME", "APPLICANT_EMAIL", "APPLICANT_PHONE",
               "APPLICANT_PROFESSIONAL_SUMMARY", "APPLICANT_RESUME_GDRIVE_LINK",
               "APPLICANT_LOCATION", "APPLICANT_LINKEDIN_URL", "APPLICANT_PORTFOLIO_URL",

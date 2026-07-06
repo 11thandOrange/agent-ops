@@ -1,12 +1,13 @@
 // POST /trigger, /webhook/github, /webhook/mcp — all authenticated from
 // day one (roadmap Phase 2, step 3; strategy doc §9.1).
 import express, { type Request } from "express";
-import { githubWebhookAuth, sharedSecretAuth } from "./auth.js";
+import { extensionAuth, githubWebhookAuth, sharedSecretAuth } from "./auth.js";
 import { logger } from "./logging.js";
 import { parseLabelEvent } from "./triggers/github_label.js";
 import { parseMentionEvent } from "./triggers/github_mention.js";
 import { handleHttpTrigger } from "./triggers/http_api.js";
 import { handleChatCommand } from "./triggers/chat_command.js";
+import { handleApplicationsLookup } from "./triggers/applications_lookup.js";
 import { mountMcpHttp } from "./integrations/mcp_server.js";
 
 function requireEnv(name: string): string {
@@ -85,16 +86,25 @@ const config = {
   siteSessions: process.env.SITE_SESSIONS_DIR ? { sessionsDir: process.env.SITE_SESSIONS_DIR } : undefined,
   // scrapeAny's search provider is chosen per-project/per-call (search_provider
   // /searchProvider — jobs/discovery/scrapeAny.ts), not fixed here; this just
-  // bundles whichever provider credentials are actually set, so either or
-  // both can be configured independently. claude_web_search uses its own
+  // bundles whichever provider credentials are actually set, so any subset
+  // can be configured independently. claude_web_search uses its own
   // ANTHROPIC_API_KEY rather than LITELLM_VIRTUAL_KEY, since it needs a
   // direct call to Anthropic's Messages API for the server-side web_search
-  // tool, not the OpenAI-compatible LiteLLM gateway the rest of the pipeline uses.
+  // tool, not the OpenAI-compatible LiteLLM gateway the rest of the pipeline
+  // uses. jsearch reuses the exact same JSEARCH_* config as apiSourcing
+  // above — one JSearch credential, usable as both a sourcing_method: api
+  // provider and a scrapeAny search_provider.
   scrapeAnySourcing:
-    process.env.SERPAPI_API_KEY || process.env.ANTHROPIC_API_KEY
+    process.env.SERPAPI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.JSEARCH_API_KEY
       ? {
           serpapi: process.env.SERPAPI_API_KEY ? { apiKey: process.env.SERPAPI_API_KEY } : undefined,
           claudeWebSearch: process.env.ANTHROPIC_API_KEY ? { apiKey: process.env.ANTHROPIC_API_KEY } : undefined,
+          jsearch: process.env.JSEARCH_API_KEY
+            ? {
+                baseUrl: process.env.JSEARCH_BASE_URL ?? "https://prod.api.market/api/v1/openwebninja/jobsearch",
+                apiKey: process.env.JSEARCH_API_KEY,
+              }
+            : undefined,
         }
       : undefined,
   // the-store didn't exist yet when this was built — unset until the repo
@@ -140,6 +150,13 @@ const config = {
           availability: process.env.APPLICANT_AVAILABILITY,
         }
       : undefined,
+  // Optional — only needed to expose the Chrome extension's lookup
+  // endpoint (GET /personal-projects/:project/applications). Deliberately
+  // separate from ORCHESTRATOR_SHARED_SECRET: the extension's code/storage
+  // is inspectable in a way a server-side env var isn't, so it gets its own
+  // narrowly-scoped credential. The endpoint itself isn't mounted at all
+  // when this is unset (see app.get below), not just auth-rejected.
+  extensionApiKey: process.env.EXTENSION_API_KEY,
 };
 
 const dispatchDeps = { githubApp: config.githubApp, installationId: config.installationId };
@@ -173,6 +190,11 @@ const httpTriggerDeps = {
     ...personalPipelineDeps,
   },
 };
+const applicationsLookupDeps = {
+  githubApp: config.githubApp,
+  installationId: config.personalInstallationId,
+  theStore: config.theStore,
+};
 
 const app = express();
 
@@ -188,6 +210,12 @@ app.use(
 app.post("/trigger", sharedSecretAuth(config.sharedSecret), handleHttpTrigger(httpTriggerDeps));
 
 app.post("/webhook/mcp", sharedSecretAuth(config.sharedSecret), handleChatCommand(chatCommandDeps));
+
+// The Chrome extension's lookup endpoint — not mounted at all unless
+// EXTENSION_API_KEY is actually configured, rather than existing 401-locked.
+if (config.extensionApiKey) {
+  app.get("/personal-projects/:project/applications", extensionAuth(config.extensionApiKey), handleApplicationsLookup(applicationsLookupDeps));
+}
 
 // Label/mention triggers fire the workflow natively via GitHub Actions
 // (`on: issues`/`on: issue_comment`) — this endpoint only logs the same

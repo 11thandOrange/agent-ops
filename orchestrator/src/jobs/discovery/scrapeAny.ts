@@ -12,11 +12,13 @@
 import { matchesCriteria } from "../criteria.js";
 import * as serpapi from "./providers/serpapi.js";
 import * as claudeWebSearch from "./providers/claudeWebSearch.js";
+import * as jsearch from "./providers/jsearch.js";
 import type { JobCriteria, PostingCandidate, SearchProviderName } from "../../types.js";
 
 export interface ScrapeAnyConfig {
   serpapi?: serpapi.SerpApiConfig;
   claudeWebSearch?: claudeWebSearch.ClaudeWebSearchConfig;
+  jsearch?: jsearch.JSearchConfig;
 }
 
 function buildQuery(criteria: JobCriteria | undefined): string {
@@ -50,6 +52,10 @@ export async function discover(
     case "claude_web_search":
       if (!config?.claudeWebSearch) throw new Error("personal pipeline: search_provider 'claude_web_search' requires ANTHROPIC_API_KEY to be configured");
       candidates = await claudeWebSearch.search(config.claudeWebSearch, query, maxResults);
+      break;
+    case "jsearch":
+      if (!config?.jsearch) throw new Error("personal pipeline: search_provider 'jsearch' requires JSEARCH_API_KEY to be configured");
+      candidates = await jsearch.search(config.jsearch, query, maxResults);
       break;
   }
 

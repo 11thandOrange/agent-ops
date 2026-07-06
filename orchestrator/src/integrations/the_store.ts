@@ -97,6 +97,145 @@ function rowToCsvLine(row: JobApplicationRow): string {
     .join(",");
 }
 
+// Inverse of rowToCsvLine/csvEscape above — a real character-by-character
+// parser, not a naive split(","), since quoted fields (application_summary,
+// resume_content, etc.) routinely contain embedded commas and newlines.
+function parseCsv(content: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    if (inQuotes) {
+      if (char === '"') {
+        if (content[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += char;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inQuotes = true;
+    } else if (char === ",") {
+      row.push(field);
+      field = "";
+    } else if (char === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+    } else if (char !== "\r") {
+      field += char;
+    }
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
+
+export interface StoredApplicationRow {
+  dateApplied: string;
+  company: string;
+  jobTitle: string;
+  location: string;
+  remote: string;
+  salary: string;
+  sourceUrl: string;
+  sourceSite: string;
+  strategy: string;
+  sourcingMethod: string;
+  searchProvider: string;
+  resumeMode: string;
+  coverLetterMode: string;
+  correlationId: string;
+  applicationSummary: string;
+  formFields: Record<string, string>;
+  resumeContent: string;
+  coverLetterContent: string;
+}
+
+// Strips scheme-irrelevant noise (tracking query params, trailing slash,
+// case) so a job posting URL revisited later — often carrying different
+// query params (JSearch apply links, UTM tags, etc.) than when it was first
+// sourced — still matches the row recorded for it. Falls back to a plain
+// lowercase/trim of the raw string for anything that isn't a parseable URL,
+// rather than throwing over one malformed value.
+export function normalizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`.toLowerCase().replace(/\/$/, "");
+  } catch {
+    return url.trim().toLowerCase();
+  }
+}
+
+export function findStoredApplicationByUrl(applications: StoredApplicationRow[], url: string): StoredApplicationRow | undefined {
+  const exact = applications.find((a) => a.sourceUrl === url);
+  if (exact) return exact;
+  const normalized = normalizeUrl(url);
+  return applications.find((a) => normalizeUrl(a.sourceUrl) === normalized);
+}
+
+// Reads and parses the-store's CSV in full — acceptable at personal-
+// pipeline scale (a handful of applications per day), not built for a CSV
+// large enough that a full read-and-parse per lookup would be slow. Returns
+// [] rather than throwing if the-store/file doesn't exist yet (no
+// applications recorded) or the CSV can't be parsed, matching
+// appendJobApplicationRow's own fail-open posture for a missing file.
+export async function loadStoredApplications(
+  githubApp: GitHubAppConfig,
+  installationId: string,
+  config: TheStoreConfig,
+): Promise<StoredApplicationRow[]> {
+  const token = await getInstallationToken(githubApp, installationId);
+  let content: string;
+  try {
+    content = await getFileContents(token, config.owner, config.repo, config.path, config.branch);
+  } catch {
+    return [];
+  }
+
+  const rows = parseCsv(content);
+  if (rows.length <= 1) return []; // header only, or empty
+
+  return rows.slice(1).map((cols) => {
+    let formFields: Record<string, string> = {};
+    try {
+      formFields = JSON.parse(cols[15] ?? "{}");
+    } catch {
+      formFields = {};
+    }
+    return {
+      dateApplied: cols[0] ?? "",
+      company: cols[1] ?? "",
+      jobTitle: cols[2] ?? "",
+      location: cols[3] ?? "",
+      remote: cols[4] ?? "",
+      salary: cols[5] ?? "",
+      sourceUrl: cols[6] ?? "",
+      sourceSite: cols[7] ?? "",
+      strategy: cols[8] ?? "",
+      sourcingMethod: cols[9] ?? "",
+      searchProvider: cols[10] ?? "",
+      resumeMode: cols[11] ?? "",
+      coverLetterMode: cols[12] ?? "",
+      correlationId: cols[13] ?? "",
+      applicationSummary: cols[14] ?? "",
+      formFields,
+      resumeContent: cols[16] ?? "",
+      coverLetterContent: cols[17] ?? "",
+    };
+  });
+}
+
 // Not atomic under concurrent writes (read-then-write, same limitation as
 // scaffold_project.ts's registry read-modify-write) — acceptable at
 // personal-pipeline scale, not safe to assume under real concurrency.
