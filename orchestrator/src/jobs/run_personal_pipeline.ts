@@ -334,6 +334,7 @@ async function draftPackage(
     sourcingSkillContent,
     `Respond with ONLY a JSON object with exactly these keys: ${fields.join(", ")}. ` +
       `"formFields" must be a flat JSON object mapping each application-form field label (e.g. "First Name", "Cover Letter", "Why do you want this role?") to its drafted value as a string — this is consumed by an automated form-fill script, so keys must match the labels an application form would actually show, not paraphrases. ` +
+      `"resume" and "coverLetter", if present, must each be a single plain-text string — full paragraphs separated by blank lines, not a nested JSON object or array of sections/bullets — since they are rendered directly onto a PDF page as-is. ` +
       "Draft every answer from the three sources below — the job posting, the applicant's professional summary, and their resume — used together as needed, in no particular order: whichever source actually answers a given question is the one to use. " +
       "Do not invent anything not supported by at least one of those three sources — this applies to the applicant's background exactly as much as it applies to posting details. If none of the three sources answer a field, leave it out of formFields rather than guessing. " +
       "No markdown code fences, no text outside the JSON object.",
@@ -361,6 +362,15 @@ async function draftPackage(
   }
   if (!parsed.applicationSummary) {
     throw new Error("personal pipeline: model response missing required 'applicationSummary' field");
+  }
+  // renderTextToPdf expects plain text — a model returning a nested object/array
+  // for resume/coverLetter instead of a string would otherwise fail deep inside
+  // pdf.ts with an opaque "body.split is not a function", confirmed live.
+  if (parsed.resume !== undefined && typeof parsed.resume !== "string") {
+    throw new Error("personal pipeline: model response's 'resume' field must be a plain-text string, not a nested object/array");
+  }
+  if (parsed.coverLetter !== undefined && typeof parsed.coverLetter !== "string") {
+    throw new Error("personal pipeline: model response's 'coverLetter' field must be a plain-text string, not a nested object/array");
   }
   return { resume: parsed.resume, coverLetter: parsed.coverLetter, applicationSummary: parsed.applicationSummary, formFields: parsed.formFields ?? {} };
 }
