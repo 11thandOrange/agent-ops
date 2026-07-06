@@ -333,8 +333,9 @@ async function draftPackage(
     skillContent,
     sourcingSkillContent,
     `Respond with ONLY a JSON object with exactly these keys: ${fields.join(", ")}. ` +
-      `"formFields" must be a flat JSON object mapping each application-form field label (e.g. "First Name", "Cover Letter", "Why do you want this role?") to its drafted value as a string — this is consumed by an automated form-fill script, so keys must match the labels an application form would actually show, not paraphrases. ` +
+      `"formFields" must be a flat JSON object mapping each application-form field label (e.g. "First Name", "Willing to relocate?", "Why do you want this role?") to its drafted value as a string — this is consumed by an automated form-fill script, so keys must match the labels an application form would actually show, not paraphrases. ` +
       `"resume" and "coverLetter", if present, must each be a single plain-text string — full paragraphs separated by blank lines, not a nested JSON object or array of sections/bullets — since they are rendered directly onto a PDF page as-is. ` +
+      `These are the ONLY place the full resume/cover-letter document text goes — do not put the full document text only inside formFields (e.g. under a "Resume" or "Cover Letter" key) and leave the top-level "resume"/"coverLetter" keys empty; formFields is exclusively for short, individual form-field answers. ` +
       "Draft every answer from the three sources below — the job posting, the applicant's professional summary, and their resume — used together as needed, in no particular order: whichever source actually answers a given question is the one to use. " +
       "Do not invent anything not supported by at least one of those three sources — this applies to the applicant's background exactly as much as it applies to posting details. If none of the three sources answer a field, leave it out of formFields rather than guessing. " +
       "No markdown code fences, no text outside the JSON object.",
@@ -372,5 +373,23 @@ async function draftPackage(
   if (parsed.coverLetter !== undefined && typeof parsed.coverLetter !== "string") {
     throw new Error("personal pipeline: model response's 'coverLetter' field must be a plain-text string, not a nested object/array");
   }
-  return { resume: parsed.resume, coverLetter: parsed.coverLetter, applicationSummary: parsed.applicationSummary, formFields: parsed.formFields ?? {} };
+  // Confirmed live: the model sometimes drafts real resume/cover-letter text
+  // but only writes it into formFields (e.g. under a "Resume" key) and leaves
+  // the top-level field blank — the JSON parses fine and passes the string
+  // check above, so it silently produced a "success" result with a PDF
+  // containing only the title heading and no body text. Recover the content
+  // from formFields before falling back to a hard failure.
+  const resume = nonEmpty(parsed.resume) ?? nonEmpty(parsed.formFields?.["Resume"]);
+  const coverLetter = nonEmpty(parsed.coverLetter) ?? nonEmpty(parsed.formFields?.["Cover Letter"]);
+  if (needsResume && !resume) {
+    throw new Error("personal pipeline: model response has no usable 'resume' text (checked both the top-level field and formFields.Resume)");
+  }
+  if (needsCoverLetter && !coverLetter) {
+    throw new Error("personal pipeline: model response has no usable 'coverLetter' text (checked both the top-level field and formFields['Cover Letter'])");
+  }
+  return { resume, coverLetter, applicationSummary: parsed.applicationSummary, formFields: parsed.formFields ?? {} };
+}
+
+function nonEmpty(value: string | undefined): string | undefined {
+  return value && value.trim() ? value : undefined;
 }
