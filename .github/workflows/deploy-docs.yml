@@ -1,9 +1,13 @@
 name: deploy-docs
 
-# Builds agent-ops-docs/ and publishes it to GitHub Pages. Lives on the
-# docs-site branch itself (not main) — GitHub evaluates a push-triggered
-# workflow's definition from the branch that received the push, so this
-# file has to travel with the content it builds.
+# Builds agent-ops-docs/ and publishes it to GitHub Pages.
+#
+# Triggers on main, not a separate docs-site branch — the auto-created
+# github-pages deployment environment restricts deployments to the
+# default branch, so a separate branch's deploy job was rejected outright
+# (zero steps, no logs — a hard environment-level reject, not a build
+# failure). Folding docs-site into main sidesteps that rather than
+# fighting the environment's branch-protection rule.
 #
 # One-time manual setup required before this can succeed: repo Settings ->
 # Pages -> Build and deployment -> Source: "GitHub Actions" (no MCP/API
@@ -11,7 +15,7 @@ name: deploy-docs
 
 on:
   push:
-    branches: [docs-site]
+    branches: [main]
     paths:
       - "agent-ops-docs/**"
   workflow_dispatch: {}
