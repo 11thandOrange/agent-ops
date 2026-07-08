@@ -7,7 +7,8 @@ import { parseLabelEvent } from "./triggers/github_label.js";
 import { parseMentionEvent } from "./triggers/github_mention.js";
 import { handleHttpTrigger } from "./triggers/http_api.js";
 import { handleChatCommand } from "./triggers/chat_command.js";
-import { handleApplicationsLookup } from "./triggers/applications_lookup.js";
+import { handleApplicantProfileLookup, handleApplicationsLookup } from "./triggers/applications_lookup.js";
+import { handleGenerateAnswer } from "./triggers/generate_answer.js";
 import { mountMcpHttp } from "./integrations/mcp_server.js";
 
 function requireEnv(name: string): string {
@@ -211,10 +212,16 @@ app.post("/trigger", sharedSecretAuth(config.sharedSecret), handleHttpTrigger(ht
 
 app.post("/webhook/mcp", sharedSecretAuth(config.sharedSecret), handleChatCommand(chatCommandDeps));
 
-// The Chrome extension's lookup endpoint — not mounted at all unless
+// The Chrome extension's endpoints — none of them mounted at all unless
 // EXTENSION_API_KEY is actually configured, rather than existing 401-locked.
 if (config.extensionApiKey) {
   app.get("/personal-projects/:project/applications", extensionAuth(config.extensionApiKey), handleApplicationsLookup(applicationsLookupDeps));
+  app.get("/personal-projects/:project/applicant-profile", extensionAuth(config.extensionApiKey), handleApplicantProfileLookup({ applicantProfile: config.applicantProfile }));
+  app.post(
+    "/personal-projects/:project/generate-answer",
+    extensionAuth(config.extensionApiKey),
+    handleGenerateAnswer({ liteLLM: config.liteLLM, applicantProfile: config.applicantProfile }),
+  );
 }
 
 // Label/mention triggers fire the workflow natively via GitHub Actions
