@@ -1,16 +1,20 @@
 // POST /personal-projects/:project/generate-answer — on-demand, per-
-// question generation for the Chrome extension's popup (heyitschloe/
+// question generation for the Chrome extension's side panel (heyitschloe/
 // extensions), used on pages never run through the pipeline (no stored
 // posting text exists to draft from — see integrations/the_store.ts). Same
 // EXTENSION_API_KEY trust boundary as the lookup endpoints in
 // applications_lookup.ts.
 //
-// Same "don't invent" guardrail as draftPackage's batch drafting in
-// run_personal_pipeline.ts — grounded only in the caller-supplied page
-// context (extracted client-side by the extension's content script, since
-// this endpoint never fetches or scrapes anything itself) and the
-// configured applicant background, never fabricated. If neither source
-// answers the question, the model is instructed to say so rather than guess.
+// Grounding is split by question type, unlike draftPackage's batch drafting
+// in run_personal_pipeline.ts (which never invents anything, full stop):
+// factual questions (contact details, work history, specific numbers) still
+// never state a fact unsupported by the caller-supplied page context or the
+// configured applicant background — {"answer": null} rather than inventing
+// one. Subjective/open-ended questions (motivation, "why this role") get a
+// best-effort draft from professional judgment even without a concrete
+// grounding fact, since a user explicitly asked for this over the stricter
+// alternative — expected to be reviewed/edited before use, not submitted
+// verbatim.
 import type { Request, Response } from "express";
 import { chatCompletion, type LiteLLMConfig } from "../integrations/litellm.js";
 import { parseModelJson } from "../integrations/llmJson.js";
@@ -71,7 +75,9 @@ export function handleGenerateAnswer(deps: GenerateAnswerDeps) {
       "You draft a single answer to one application-form question, for a browser extension's on-demand generate button. " +
       'Respond with ONLY a JSON object: {"answer": string | null} — no markdown fences, no other text. ' +
       "Draft the answer from the page context and the applicant background below, used together as needed, in no particular order — whichever source actually answers the question is the one to use. " +
-      "Do not invent anything not supported by those two sources. If neither source answers the question, respond with {\"answer\": null} rather than guessing.";
+      "For factual questions (contact details, work history, specific numbers, dates, or any other concrete fact) never state a fact that isn't supported by those two sources — respond with {\"answer\": null} rather than inventing one. " +
+      "For subjective or open-ended questions (e.g. motivation, why this role or company, strengths, culture fit) where neither source gives you a concrete fact to cite, still draft a genuine, well-reasoned best-effort answer using professional judgment and whatever context is available (job title, company name, industry, the applicant's stated background/experience) rather than refusing — the applicant will review and edit it before using it, so a reasonable draft is more useful than a refusal. " +
+      "Only respond with {\"answer\": null} when the question is factual and unanswerable from the two sources, or when there is truly nothing at all (no page context and no applicant background) to draft from.";
     const userContent = [
       `Question: ${question}`,
       pageContext && `Page context (from the current page):\n\n${pageContext.slice(0, 8000)}`,
