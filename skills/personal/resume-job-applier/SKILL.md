@@ -1,6 +1,6 @@
 ---
 name: resume-job-applier
-description: Personal-assistant project skill for the resume builder + job applier pipeline. Drafts and queues LinkedIn job applications; never submits them.
+description: Personal-assistant project skill for the resume builder + job applier pipeline. Drafts and queues job applications across LinkedIn, Glassdoor, Indeed, generic company career pages, and JSearch-sourced/discovered postings; never submits them.
 ---
 
 # Resume builder + job applier
@@ -15,7 +15,11 @@ This is the most important guardrail in this skill and overrides anything else t
 
 ## Scope
 
-- **LinkedIn only, for now.** Other job sites are separate skill sections added later on request, since each site has its own automation risk profile — don't generalize to other sites unprompted.
+- **(Revised) No longer LinkedIn-only.** That was true of the original pilot; the pipeline has since grown three other sourcing paths, each with its own skill section and risk profile:
+  - `sourcing_method: scraping` — named adapters for `linkedin`, `glassdoor`, `indeed` (`sourcing/scraping/SKILL.md`), plus `generic-one-page-app`/`generic-multistep-app` fallbacks for any other site (e.g. a company's own careers page), resolved automatically by hostname or set explicitly via `scraping_adapter`.
+  - `sourcing_method: api` — the `jsearch` provider (OpenWebNinja's Job Search API via API.market), not tied to any one site (`sourcing/api/SKILL.md`).
+  - `strategy: scrapeAny` with `search_provider: jsearch`/`serpapi`/`claude_web_search` — searches the open web with **no site allowlist**, deliberate and confirmed (see Discovery strategy below).
+  - Don't generalize to a *new* named scraping adapter for a site not listed above unprompted — that part of the original caution still holds. Adding one is a deliberate act (a new adapter module + a resolver case), not an emergent side effect of a broader `scrapeAny`/`scrapeAll` run.
 
 ## Sourcing method — configurable, default scraping
 
@@ -112,7 +116,7 @@ On page load, the extension calls the orchestrator's `GET /personal-projects/:pr
 
 ## Scheduled automation — daily scrapeAny (jsearch)
 
-**(New)** one scheduled automation exists: `strategy: scrapeAny` with `search_provider: jsearch`, criteria baked directly into the trigger's own prompt/payload (not a new registry concept), running daily. It dedupes against the-store like every other `scrapeAny` call — see above — so a still-posted job from yesterday's run doesn't get redrafted every day. Delivery is a `create_trigger` bound (`persistent_session_id`) to a dedicated session created specifically for this automation, separate from any interactive build/chat session — every firing resumes that same conversation, so results land in one consistent place rather than nowhere (an unattended cron has no chat thread to reply into otherwise).
+**(New)** one scheduled automation exists: `strategy: scrapeAny` with `search_provider: jsearch`, criteria baked directly into the trigger's own prompt/payload (not a new registry concept), running daily. It dedupes against the-store like every other `scrapeAny` call — see above — so a still-posted job from yesterday's run doesn't get redrafted every day. **(Revised)** delivery was originally meant to be a `create_trigger` bound (`persistent_session_id`) to a dedicated session, so every firing resumed the same conversation and results landed in one consistent place. `persistent_session_id` binding turned out to be disabled at the platform/org level (confirmed via a failed `create_trigger` call, not a per-session issue) — the shipped mechanism is `create_new_session_on_fire: true` instead, so each daily firing spins up a fresh session rather than resuming one. Results still land somewhere reviewable (the-store CSV + that firing's own session transcript); there's just no single running conversation thread to check back on across days the way the original design intended.
 
 ## Storage — the-store
 
