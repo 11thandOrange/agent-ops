@@ -95,6 +95,18 @@ export interface ApplicationFailure {
 export type PersonalPipelineResultItem = ApplicationPackage | ApplicationFailure;
 export type PersonalPipelineResult = PersonalPipelineResultItem[];
 
+// An empty result array is ambiguous on its own — "the search found
+// literally nothing" and "everything found was already recorded" both look
+// identical as `result: []`. Callers (chat_command.ts, http_api.ts) surface
+// this alongside the empty array so it's not silently indistinguishable
+// from either of those. scrapeOne always returns exactly one entry, so this
+// is only ever reached for scrapeAll/scrapeAny.
+export function noNewResultsMessage(result: PersonalPipelineResult): string | undefined {
+  return result.length === 0
+    ? "No new results — every matching candidate was already recorded (deduped against the-store), or none were found for this criteria at all."
+    : undefined;
+}
+
 export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: PersonalPipelineRequest): Promise<PersonalPipelineResult> {
   const log = logger.withContext({ correlationId: req.correlationId, project: req.project });
   log.info("dispatching personal pipeline", { requestedBy: req.requestedBy });
@@ -273,6 +285,7 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
     const results: PersonalPipelineResultItem[] = [];
     const seenUrls = new Set<string>();
     const attemptCap = maxResults * 3;
+    const maxBatchSize = 100;
     let successCount = 0;
     let totalAttempted = 0;
     let batchSize = maxResults;
@@ -281,9 +294,21 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
       const batch = await dedupeAgainstStore(await scrapeAnyDiscovery.discover(deps.scrapeAnySourcing, searchProvider, req.criteria, batchSize));
       const newCandidates = batch.filter((c): c is PostingCandidate => !!c && !seenUrls.has(c.url));
 
+      // Confirmed live: a small first batch (size maxResults) landing
+      // entirely on already-recorded the-store rows used to be read as
+      // "nothing left" and the loop gave up immediately — even though the
+      // provider likely has candidates #11+ that were never even asked
+      // for. A batch fully deduped only means *that* batch had nothing
+      // new, not that the provider is exhausted. Grow the ask and retry
+      // before concluding there's truly nothing left; only stop once even
+      // the largest batch this loop will ever request comes back empty.
       if (newCandidates.length === 0) {
-        log.info("scrapeAny retry loop stopping — no new candidates found", { totalAttempted, successCount });
-        break;
+        if (batchSize >= maxBatchSize) {
+          log.info("scrapeAny retry loop stopping — exhausted even at the largest batch size", { totalAttempted, successCount, batchSize });
+          break;
+        }
+        batchSize = Math.min(batchSize * 2, maxBatchSize);
+        continue;
       }
 
       for (const candidate of newCandidates) {
@@ -298,7 +323,7 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
       // Most providers don't offer true pagination/offset — asking for a
       // bigger batch is how "more" candidates surface at all, accepting
       // some re-fetched overlap (filtered out via seenUrls) as the cost.
-      batchSize = Math.min(batchSize * 2, 50);
+      batchSize = Math.min(batchSize * 2, maxBatchSize);
     }
 
     return results;

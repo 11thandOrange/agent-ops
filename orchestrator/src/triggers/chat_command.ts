@@ -7,7 +7,7 @@ import { z } from "zod";
 import { createTicket, getInstallationToken, getIssue, labelIssue, type GitHubAppConfig } from "../integrations/github.js";
 import { dispatchImplement } from "../jobs/implement_ticket.js";
 import { dispatchPlan } from "../jobs/plan_ticket.js";
-import { dispatchPersonalPipeline, type PersonalPipelineDeps } from "../jobs/run_personal_pipeline.js";
+import { dispatchPersonalPipeline, noNewResultsMessage, type PersonalPipelineDeps } from "../jobs/run_personal_pipeline.js";
 import { theStoreFileUrl } from "../integrations/the_store.js";
 import { scaffoldProject, type ScaffoldDeps } from "../jobs/scaffold_project.js";
 import { logger, newCorrelationId } from "../logging.js";
@@ -171,7 +171,7 @@ export function handleChatCommand(deps: ChatCommandDeps) {
             apiProvider: call.apiProvider,
           });
           const csvUrl = deps.personalPipeline.theStore ? theStoreFileUrl(deps.personalPipeline.theStore) : undefined;
-          res.status(200).json({ correlationId, status: "complete", result, csvUrl });
+          res.status(200).json({ correlationId, status: "complete", result, csvUrl, message: noNewResultsMessage(result) });
           return;
         }
         case "scaffold_project": {

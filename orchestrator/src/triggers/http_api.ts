@@ -7,7 +7,7 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import { dispatchImplement } from "../jobs/implement_ticket.js";
 import { dispatchPlan, type DispatchDeps } from "../jobs/plan_ticket.js";
-import { dispatchPersonalPipeline, type PersonalPipelineDeps } from "../jobs/run_personal_pipeline.js";
+import { dispatchPersonalPipeline, noNewResultsMessage, type PersonalPipelineDeps } from "../jobs/run_personal_pipeline.js";
 import { theStoreFileUrl } from "../integrations/the_store.js";
 import { logger, newCorrelationId } from "../logging.js";
 
@@ -107,7 +107,7 @@ export function handleHttpTrigger(deps: HttpTriggerDeps) {
       // the CSV append itself (dispatchPersonalPipeline warns and skips
       // rather than failing when it's unset).
       const csvUrl = deps.personal.theStore ? theStoreFileUrl(deps.personal.theStore) : undefined;
-      res.status(200).json({ correlationId, status: "complete", result, csvUrl });
+      res.status(200).json({ correlationId, status: "complete", result, csvUrl, message: noNewResultsMessage(result) });
     } catch (err) {
       logger.error("trigger dispatch failed", { correlationId, error: String(err) });
       res.status(502).json({ error: "dispatch failed", correlationId });
