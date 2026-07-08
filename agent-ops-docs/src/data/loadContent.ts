@@ -14,6 +14,7 @@ import { deploymentPages } from './pages/deployment';
 import { runningPipelinesPages } from './pages/runningPipelines';
 import { automationsPages } from './pages/automations';
 import { commandReferencePages } from './pages/commandReference';
+import { stretchFeaturesPages } from './pages/stretchFeatures';
 
 registerPages(overviewPages);
 registerPages(architecturePages);
@@ -26,3 +27,4 @@ registerPages(deploymentPages);
 registerPages(runningPipelinesPages);
 registerPages(automationsPages);
 registerPages(commandReferencePages);
+registerPages(stretchFeaturesPages);

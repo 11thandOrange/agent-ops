@@ -30,6 +30,7 @@ export const sections: Section[] = [
   { id: 'running-pipelines', title: 'Running Pipelines', slug: '/running-pipelines' },
   { id: 'automations', title: 'Automations', slug: '/automations' },
   { id: 'command-reference', title: 'Command Reference', slug: '/command-reference' },
+  { id: 'stretch-features', title: 'Stretch Features', slug: '/stretch-features' },
 ];
 
 export const navigationBySection: Record<string, NavItem[]> = {
@@ -65,4 +66,6 @@ export const navigationBySection: Record<string, NavItem[]> = {
   automations: [{ id: 'automations', title: 'Automations & Scheduled Triggers', route: '/automations' }],
 
   'command-reference': [{ id: 'command-reference', title: 'Command Reference', route: '/command-reference' }],
+
+  'stretch-features': [{ id: 'stretch-features', title: 'Stretch Features', route: '/stretch-features' }],
 };
