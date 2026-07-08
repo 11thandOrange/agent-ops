@@ -17,7 +17,7 @@ import * as apiSourcing from "./sourcing/api.js";
 import * as scrapingSourcing from "./sourcing/scraping.js";
 import * as scrapeAllDiscovery from "./discovery/scrapeAll.js";
 import * as scrapeAnyDiscovery from "./discovery/scrapeAny.js";
-import type { ApiProviderName, ApplicantProfile, DocumentSource, JobCriteria, PostingCandidate, ScrapingAdapterName, SearchProviderName, SourcingMethod, Strategy } from "../types.js";
+import type { ApiProviderName, ApplicantProfile, DocumentSource, JobCriteria, PersonalProjectEntry, PostingCandidate, ScrapingAdapterName, SearchProviderName, SourcingMethod, Strategy } from "../types.js";
 
 export interface PersonalPipelineDeps {
   githubApp: GitHubAppConfig;
@@ -99,10 +99,14 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
   const log = logger.withContext({ correlationId: req.correlationId, project: req.project });
   log.info("dispatching personal pipeline", { requestedBy: req.requestedBy });
 
-  const entry = loadPersonalProject(req.project);
-  if (!entry) {
+  const rawEntry = loadPersonalProject(req.project);
+  if (!rawEntry) {
     throw new Error(`personal pipeline: no registry entry for project '${req.project}' in registry/personal/projects.yaml`);
   }
+  // TS narrowing on rawEntry doesn't survive into the nested closures
+  // below (dedupeAgainstStore/processCandidate) — this concretely-typed
+  // rebinding does.
+  const entry: PersonalProjectEntry = rawEntry;
 
   const resumeSource = req.resumeSource ?? entry.resume_source;
   const coverLetterSource = req.coverLetterSource ?? entry.cover_letter_source;
@@ -139,25 +143,6 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
   );
 
   log.info("discovering postings", { strategy, sourcingMethod, maxResults, searchProvider });
-  let candidates = await discoverCandidates(deps, strategy, req, entry.model_profile, maxResults, searchProvider);
-
-  // Applies to every scrapeAll/scrapeAny call, not just scheduled ones —
-  // scrapeOne's candidate is always undefined (no discovery step), so this
-  // is a no-op there. Skipped entirely (not just gracefully) when the-store
-  // isn't configured, same fail-open posture as every other the-store
-  // touchpoint — a broken/unreachable CSV never blocks drafting.
-  if (deps.theStore && candidates.some((c) => c !== undefined)) {
-    try {
-      const applications = await loadStoredApplications(deps.githubApp, deps.installationId, deps.theStore);
-      const before = candidates.length;
-      candidates = candidates.filter((c) => !c || !findStoredApplicationByUrl(applications, c.url));
-      if (candidates.length !== before) {
-        log.info("deduped candidates already present in the-store", { before, after: candidates.length });
-      }
-    } catch (err) {
-      log.warn("failed to load the-store for dedup — continuing without it", { error: String(err) });
-    }
-  }
 
   const needsResume = resumeSource.mode === "generated_pdf";
   const needsCoverLetter = coverLetterSource.mode === "generated_pdf";
@@ -175,8 +160,31 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
     }
   }
 
-  const results: PersonalPipelineResultItem[] = [];
-  for (const candidate of candidates) {
+  // Applies to every scrapeAll/scrapeAny batch (single call site below, or
+  // once per retry batch in the scrapeAny loop further down). Skipped
+  // entirely (not just gracefully) when the-store isn't configured, same
+  // fail-open posture as every other the-store touchpoint — a broken/
+  // unreachable CSV never blocks drafting.
+  async function dedupeAgainstStore(batch: Array<PostingCandidate | undefined>): Promise<Array<PostingCandidate | undefined>> {
+    if (!deps.theStore || !batch.some((c) => c !== undefined)) return batch;
+    try {
+      const applications = await loadStoredApplications(deps.githubApp, deps.installationId, deps.theStore);
+      const before = batch.length;
+      const deduped = batch.filter((c) => !c || !findStoredApplicationByUrl(applications, c.url));
+      if (deduped.length !== before) {
+        log.info("deduped candidates already present in the-store", { before, after: deduped.length });
+      }
+      return deduped;
+    } catch (err) {
+      log.warn("failed to load the-store for dedup — continuing without it", { error: String(err) });
+      return batch;
+    }
+  }
+
+  // Sources, drafts, renders, and (on success) records one candidate. Never
+  // throws — a failure becomes an ApplicationFailure result item so one bad
+  // candidate never aborts the rest of the batch.
+  async function processCandidate(candidate: PostingCandidate | undefined): Promise<PersonalPipelineResultItem> {
     try {
       const sourceRequest = candidate?.url ?? req.request;
       const posting = await gatherPosting(deps, sourcingMethod, { request: sourceRequest }, scrapingAdapter, apiProvider);
@@ -204,7 +212,7 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
           : { mode: "generated_pdf", pdfBase64: (await renderTextToPdf("Cover Letter", draft.coverLetter ?? "")).toString("base64") };
 
       const sourceUrl = posting.sourceUrl ?? candidate?.url;
-      results.push({
+      const result: ApplicationPackage = {
         status: "success",
         resume,
         coverLetter,
@@ -213,7 +221,7 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
         sourceUrl,
         title: candidate?.title,
         company: candidate?.company,
-      });
+      };
 
       if (deps.theStore) {
         try {
@@ -243,12 +251,64 @@ export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: 
       } else {
         log.warn("the-store not configured — skipping CSV append");
       }
+
+      return result;
     } catch (err) {
       log.error("candidate failed — continuing with the rest of the batch", { error: String(err), sourceUrl: candidate?.url, title: candidate?.title });
-      results.push({ status: "failed", sourceUrl: candidate?.url, title: candidate?.title, company: candidate?.company, error: String(err) });
+      return { status: "failed", sourceUrl: candidate?.url, title: candidate?.title, company: candidate?.company, error: String(err) };
     }
   }
 
+  if (strategy === "scrapeAny") {
+    // Discovery used to run exactly once here — a failed candidate was
+    // never replaced, so maxResults was an attempt cap, not a success
+    // guarantee (confirmed live: 9 candidates attempted via jsearch, 4
+    // succeeded, 5 failed, and the run stopped there rather than fetching a
+    // 10th to make up the difference). This now keeps fetching larger
+    // batches — excluding every URL already tried this run — until either
+    // maxResults successes are collected or attemptCap total candidates
+    // have been attempted, whichever comes first. attemptCap bounds the
+    // cost when criteria genuinely can't be satisfied maxResults times
+    // over, rather than looping forever.
+    const results: PersonalPipelineResultItem[] = [];
+    const seenUrls = new Set<string>();
+    const attemptCap = maxResults * 3;
+    let successCount = 0;
+    let totalAttempted = 0;
+    let batchSize = maxResults;
+
+    while (successCount < maxResults && totalAttempted < attemptCap) {
+      const batch = await dedupeAgainstStore(await scrapeAnyDiscovery.discover(deps.scrapeAnySourcing, searchProvider, req.criteria, batchSize));
+      const newCandidates = batch.filter((c): c is PostingCandidate => !!c && !seenUrls.has(c.url));
+
+      if (newCandidates.length === 0) {
+        log.info("scrapeAny retry loop stopping — no new candidates found", { totalAttempted, successCount });
+        break;
+      }
+
+      for (const candidate of newCandidates) {
+        if (successCount >= maxResults || totalAttempted >= attemptCap) break;
+        seenUrls.add(candidate.url);
+        totalAttempted++;
+        const result = await processCandidate(candidate);
+        results.push(result);
+        if (result.status === "success") successCount++;
+      }
+
+      // Most providers don't offer true pagination/offset — asking for a
+      // bigger batch is how "more" candidates surface at all, accepting
+      // some re-fetched overlap (filtered out via seenUrls) as the cost.
+      batchSize = Math.min(batchSize * 2, 50);
+    }
+
+    return results;
+  }
+
+  const candidates = await dedupeAgainstStore(await discoverCandidates(deps, strategy, req, entry.model_profile, maxResults, searchProvider));
+  const results: PersonalPipelineResultItem[] = [];
+  for (const candidate of candidates) {
+    results.push(await processCandidate(candidate));
+  }
   return results;
 }
 
