@@ -1,0 +1,53 @@
+name: deploy-docs
+
+# Builds agent-ops-docs/ and publishes it to GitHub Pages. Lives on the
+# docs-site branch itself (not main) — GitHub evaluates a push-triggered
+# workflow's definition from the branch that received the push, so this
+# file has to travel with the content it builds.
+#
+# One-time manual setup required before this can succeed: repo Settings ->
+# Pages -> Build and deployment -> Source: "GitHub Actions" (no MCP/API
+# tool in this session's toolset can toggle that setting).
+
+on:
+  push:
+    branches: [docs-site]
+    paths:
+      - "agent-ops-docs/**"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+        working-directory: agent-ops-docs
+      - run: npm run build
+        working-directory: agent-ops-docs
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: agent-ops-docs/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
