@@ -19,7 +19,7 @@
 import type { Request, Response } from "express";
 import { chatCompletion, type LiteLLMConfig } from "../integrations/litellm.js";
 import { parseModelJson } from "../integrations/llmJson.js";
-import { loadPersonalProject } from "../registry/load.js";
+import { loadJobSearchPipeline } from "../registry/load.js";
 import type { ApplicantProfile } from "../types.js";
 
 export interface GenerateAnswerDeps {
@@ -58,7 +58,7 @@ function formatApplicantProfile(profile: ApplicantProfile | undefined): string {
 export function handleGenerateAnswer(deps: GenerateAnswerDeps) {
   return async (req: Request, res: Response) => {
     const { project } = req.params;
-    const entry = loadPersonalProject(project);
+    const entry = loadJobSearchPipeline(project);
     if (!entry) {
       res.status(404).json({ error: `no registry entry for project '${project}'` });
       return;

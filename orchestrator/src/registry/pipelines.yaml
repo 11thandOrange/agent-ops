@@ -1,0 +1,46 @@
+# Unified registry — one entry per pipeline, replacing the old
+# registry/development/projects.yaml + registry/personal/projects.yaml
+# split. Adding a pipeline is a new entry here, not new engine code — see
+# pipeline-orchestrator's README for the full PipelineDefinition shape.
+
+- name: busybuddy-dev
+  handler: dev-ticket-pipeline
+  skill_path: skills/shared/dev/busybuddy-dev
+  execution:
+    kind: github-actions
+    workflow: dev-pipeline-reusable.yml
+    owner: 11thandOrange
+    repo: BusyBuddy_v2
+  triggers:
+    labels:
+      approach-ready: plan
+      approved: implement
+    mentions:
+      "@dev-agent plan": plan
+      "@dev-agent implement": implement
+  params:
+    model_profile: implementation
+    project_language: [typescript]
+    test_command: "npm test -- --coverage"
+    coverage_type: cobertura
+    desired_coverage: 85
+    reviewer: heyitschloe
+
+- name: resume-job-applier
+  handler: job-search-pipeline
+  skill_path: skills/personal/resume-job-applier
+  execution:
+    kind: in-process
+  triggers:
+    chat_tool: run_personal_project_pipeline
+    http_kind: personal
+  params:
+    model_profile: planning
+    resume_source:
+      mode: generated_pdf
+    cover_letter_source:
+      mode: generated_pdf
+    sourcing_method: scraping
+    strategy: scrapeOne
+    max_results: 10
+    search_provider: serpapi

@@ -11,13 +11,12 @@ import { renderTextToPdf } from "../integrations/pdf.js";
 import { appendJobApplicationRow, findStoredApplicationByUrl, loadStoredApplications, type TheStoreConfig } from "../integrations/the_store.js";
 import { fetchResumeText } from "../integrations/google_drive.js";
 import { logger } from "../logging.js";
-import { loadPersonalProject } from "../registry/load.js";
 import * as manualSourcing from "./sourcing/manual.js";
 import * as apiSourcing from "./sourcing/api.js";
 import * as scrapingSourcing from "./sourcing/scraping.js";
 import * as scrapeAllDiscovery from "./discovery/scrapeAll.js";
 import * as scrapeAnyDiscovery from "./discovery/scrapeAny.js";
-import type { ApiProviderName, ApplicantProfile, DocumentSource, JobCriteria, PersonalProjectEntry, PostingCandidate, ScrapingAdapterName, SearchProviderName, SourcingMethod, Strategy } from "../types.js";
+import type { ApiProviderName, ApplicantProfile, DocumentSource, JobCriteria, JobSearchParams, PostingCandidate, ScrapingAdapterName, SearchProviderName, SourcingMethod, Strategy } from "../types.js";
 
 export interface PersonalPipelineDeps {
   githubApp: GitHubAppConfig;
@@ -40,7 +39,6 @@ export interface PersonalPipelineDeps {
 }
 
 export interface PersonalPipelineRequest {
-  project: string;
   // scrapeOne: a pasted posting or its URL. scrapeAll: the site URL to
   // crawl. scrapeAny: ignored — criteria drives the search.
   request: string;
@@ -107,18 +105,19 @@ export function noNewResultsMessage(result: PersonalPipelineResult): string | un
     : undefined;
 }
 
-export async function dispatchPersonalPipeline(deps: PersonalPipelineDeps, req: PersonalPipelineRequest): Promise<PersonalPipelineResult> {
-  const log = logger.withContext({ correlationId: req.correlationId, project: req.project });
+// `entry` is this pipeline's own registry params (JobSearchParams), resolved
+// by the caller from the generic engine's ctx.pipeline — this function no
+// longer looks up a registry itself (the old two-file dev/personal registry
+// this used to read via loadPersonalProject is gone; the engine's unified
+// pipelines.yaml + createServer's own params-schema validation replaces it).
+export async function dispatchPersonalPipeline(
+  deps: PersonalPipelineDeps,
+  req: PersonalPipelineRequest,
+  pipelineName: string,
+  entry: JobSearchParams,
+): Promise<PersonalPipelineResult> {
+  const log = logger.withContext({ correlationId: req.correlationId, pipeline: pipelineName });
   log.info("dispatching personal pipeline", { requestedBy: req.requestedBy });
-
-  const rawEntry = loadPersonalProject(req.project);
-  if (!rawEntry) {
-    throw new Error(`personal pipeline: no registry entry for project '${req.project}' in registry/personal/projects.yaml`);
-  }
-  // TS narrowing on rawEntry doesn't survive into the nested closures
-  // below (dedupeAgainstStore/processCandidate) — this concretely-typed
-  // rebinding does.
-  const entry: PersonalProjectEntry = rawEntry;
 
   const resumeSource = req.resumeSource ?? entry.resume_source;
   const coverLetterSource = req.coverLetterSource ?? entry.cover_letter_source;

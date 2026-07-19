@@ -8,7 +8,7 @@ import type { Request, Response } from "express";
 import { findStoredApplicationByUrl, loadStoredApplications, type TheStoreConfig } from "../integrations/the_store.js";
 import type { GitHubAppConfig } from "../integrations/github.js";
 import type { ApplicantProfile } from "../types.js";
-import { loadPersonalProject } from "../registry/load.js";
+import { loadJobSearchPipeline } from "../registry/load.js";
 
 export interface ApplicationsLookupDeps {
   githubApp: GitHubAppConfig;
@@ -24,7 +24,7 @@ export function handleApplicationsLookup(deps: ApplicationsLookupDeps) {
       res.status(400).json({ error: "query param 'url' is required" });
       return;
     }
-    if (!loadPersonalProject(project)) {
+    if (!loadJobSearchPipeline(project)) {
       res.status(404).json({ error: `no registry entry for project '${project}'` });
       return;
     }
@@ -65,7 +65,7 @@ export interface ApplicantProfileLookupDeps {
 export function handleApplicantProfileLookup(deps: ApplicantProfileLookupDeps) {
   return (req: Request, res: Response) => {
     const { project } = req.params;
-    if (!loadPersonalProject(project)) {
+    if (!loadJobSearchPipeline(project)) {
       res.status(404).json({ error: `no registry entry for project '${project}'` });
       return;
     }
