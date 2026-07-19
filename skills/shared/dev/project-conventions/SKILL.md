@@ -15,14 +15,14 @@ Reference example for a `type: dev` project skill — written by hand as the pil
 ## Structure and conventions
 
 - Node/TypeScript project with **separate backend and frontend test suites**, plus a **cart-transformer Shopify extension** with its own suite. Any change touching more than one of these areas must run all affected suites, not just the one that looks most relevant.
-- Test framework: **Vitest**. Standard test command: `npm test -- --coverage` (matches `registry/development/projects.yaml`'s `test_command` for this project — keep these in sync if the command changes).
-- Coverage format: **cobertura**, target **85%** (`registry/development/projects.yaml`: `coverage_type: cobertura`, `desired_coverage: 85`).
+- Test framework: **Vitest**. Standard test command: `npm test -- --coverage` (matches `orchestrator/src/registry/pipelines.yaml`'s `test_command` for this project — keep these in sync if the command changes).
+- Coverage format: **cobertura**, target **85%** (`orchestrator/src/registry/pipelines.yaml`: `coverage_type: cobertura`, `desired_coverage: 85`).
 - Existing **Playwright smoke tests** are worth keeping even though the `smoke-tester` agent that used to run them is retired (roadmap Phase 4, step 4) — decide per-ticket whether a change warrants running them, and don't let this pipeline's own test writing duplicate what smoke coverage already checks.
 
 ## Approach docs and implementation
 
 - Follow `skills/shared/dev/approach-doc-format/SKILL.md` and `skills/shared/dev/approval-gate-protocol/SKILL.md` — this file only adds what's specific to BusyBuddy_v2.
-- Reviewer: `heyitschloe` (per `registry/development/projects.yaml`'s `reviewer` field for this project).
+- Reviewer: `heyitschloe` (per `orchestrator/src/registry/pipelines.yaml`'s `reviewer` field for this project).
 - Write unit tests against the approach doc's acceptance criteria as part of implementation (TDD-style) — the Qodo gate (self-hosted PR-Agent + qodo-cover) audits what's there afterward, it doesn't generate tests from the plan.
 
 ## Guardrails

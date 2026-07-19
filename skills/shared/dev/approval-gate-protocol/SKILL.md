@@ -19,7 +19,7 @@ The pipeline never moves from planning to implementation without an explicit hum
 
 ## What "approved" means for the reviewer
 
-- The reviewer for a given project is whatever `registry/development/projects.yaml` sets for that project's `reviewer` field — currently `heyitschloe` on every entry, but this is a per-project config value, not a hardcoded assumption. Don't write code or docs that assume a single fixed reviewer identity.
+- The reviewer for a given project is whatever `orchestrator/src/registry/pipelines.yaml` sets for that project's `reviewer` field — currently `heyitschloe` on every entry, but this is a per-project config value, not a hardcoded assumption. Don't write code or docs that assume a single fixed reviewer identity.
 - Approving means "the approach is right," not "the diff is right" — the diff itself still goes through the Qodo quality gate (self-hosted PR-Agent + qodo-cover) after implementation, and the human reviews the actual PR before merge. Approval at this gate is about the plan, not a merge decision.
 
 ## What implementation must do once approved

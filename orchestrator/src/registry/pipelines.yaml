@@ -5,7 +5,14 @@
 
 - name: busybuddy-dev
   handler: dev-ticket-pipeline
-  skill_path: skills/shared/dev/busybuddy-dev
+  # Dev-ticket-pipeline skills are actually resolved at runtime by the
+  # reusable workflow's applies_to matching across all of skills/shared/dev/
+  # (see dev-pipeline-reusable.yml's "Match shared skills" step) — this
+  # deployment's skill_path is only used as the write target if
+  # scaffold_pipeline is later used to regenerate this project's skill.
+  # BusyBuddy_v2's real skill today is skills/shared/dev/project-conventions
+  # (applies_to: all), written by hand before scaffold_pipeline existed.
+  skill_path: skills/shared/dev/project-conventions
   execution:
     kind: github-actions
     workflow: dev-pipeline-reusable.yml

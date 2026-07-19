@@ -37,4 +37,4 @@ Resolution order: an explicit `scraping_adapter` (registry) / `scrapingAdapter` 
 
 ## Switching away from this default
 
-Set `sourcing_method: api` or `sourcing_method: manual` in `registry/personal/projects.yaml`, or pass `sourcingMethod` as a per-call override on the `run_personal_project_pipeline` tool call, if you'd rather not carry this risk for a given run.
+Set `sourcing_method: api` or `sourcing_method: manual` in `orchestrator/src/registry/pipelines.yaml`, or pass `sourcingMethod` as a per-call override on the `run_personal_project_pipeline` tool call, if you'd rather not carry this risk for a given run.
