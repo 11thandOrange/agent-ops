@@ -3,7 +3,7 @@
 // registers exactly like the shipped dev-ticket-pipeline handler — this is
 // this deployment's own private pipeline, never shipped in the public repo.
 import { z } from "zod";
-import type { PipelineHandler, PipelineHandlerContext, PipelineResult } from "pipeline-orchestrator";
+import type { PipelineHandler, PipelineHandlerContext, PipelineResult } from "@heyitschloe/pipeline-orchestrator";
 import { dispatchPersonalPipeline, noNewResultsMessage, type PersonalPipelineDeps, type PersonalPipelineRequest } from "../jobs/run_personal_pipeline.js";
 import type { JobSearchParams } from "../types.js";
 

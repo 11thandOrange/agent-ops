@@ -15,7 +15,7 @@ import {
   sharedSecretAuth,
   extensionAuth,
   type GitHubAppConfig,
-} from "pipeline-orchestrator";
+} from "@heyitschloe/pipeline-orchestrator";
 import { createJobSearchPipelineHandler } from "./handlers/job_search_pipeline.js";
 import { handleApplicantProfileLookup, handleApplicationsLookup } from "./triggers/applications_lookup.js";
 import { handleGenerateAnswer } from "./triggers/generate_answer.js";
