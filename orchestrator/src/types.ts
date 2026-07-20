@@ -1,35 +1,8 @@
-// The one job shape every trigger adapter normalizes into (strategy doc §4.1).
-
-export type TriggerSource = "label" | "mention" | "chat" | "curl" | "dispatch";
-export type JobAction = "plan" | "implement";
-
-export interface JobPayload {
-  repo: string; // "owner/name"
-  issueNumber: number;
-  action: JobAction;
-  requestedBy: string;
-  source: TriggerSource;
-  correlationId: string;
-}
-
-// Dev and personal projects are structurally separated (not one interface
-// with a pile of optional fields for either shape) — a dev entry can never
-// carry personal-only fields or vice versa, and each lives in its own
-// registry file (registry/development/projects.yaml vs
-// registry/personal/projects.yaml).
-
-export interface DevProjectEntry {
-  project: string;
-  type: "dev";
-  repo: string;
-  model_profile: string; // alias from litellm/config.yaml
-  test_gate?: string;
-  project_language: string[];
-  test_command: string;
-  coverage_type: string;
-  desired_coverage: number;
-  reviewer: string;
-}
+// Job-search-pipeline-specific types only. The generic engine types
+// (JobPayload, PipelineDefinition, PipelineHandler, etc.) now live in the
+// pipeline-orchestrator package — this repo only defines the shape of ITS
+// OWN pipeline's params, which the engine treats as an opaque bag it never
+// reads itself.
 
 // A document source is either an existing Google Drive doc (static, not
 // tailored per posting) or freshly drafted and rendered to PDF each run.
@@ -135,19 +108,20 @@ export interface ApplicantProfile {
   availability?: string;
 }
 
-export interface PersonalProjectEntry {
-  project: string;
-  type: "personal";
-  skill_path: string; // personal projects have no repo/project_language to match a shared skill's applies_to against, so they're pointed at explicitly
+// This pipeline's own `params` shape — cast out of the engine's opaque
+// PipelineDefinition.params by the job-search-pipeline handler, and
+// validated against JobSearchParamsSchema (handlers/job_search_pipeline.ts)
+// before this repo trusts it. skill_path lives on the PipelineDefinition
+// itself (every pipeline has one), not duplicated in here.
+export interface JobSearchParams {
+  skill_path: string;
   model_profile: string;
   resume_source: DocumentSource;
   cover_letter_source: DocumentSource;
   sourcing_method: SourcingMethod;
   strategy: Strategy;
-  max_results: number; // caps scrapeAll/scrapeAny — each result costs a full model call + document renders
-  search_provider: SearchProviderName; // scrapeAny only — which search API/tool discovers candidates (serpapi | claude_web_search | jsearch)
-  scraping_adapter?: ScrapingAdapterName; // sourcing_method: scraping only — omit to auto-detect from the URL
-  api_provider?: ApiProviderName; // sourcing_method: api only — omit to use the only provider (jsearch) today
+  max_results: number;
+  search_provider: SearchProviderName;
+  scraping_adapter?: ScrapingAdapterName;
+  api_provider?: ApiProviderName;
 }
-
-export type ProjectEntry = DevProjectEntry | PersonalProjectEntry;

@@ -1,26 +1,32 @@
-# Thin per-app-repo caller for agent-ops's dev-pipeline-reusable.yml
-# (strategy doc §4.5). This file is NOT pushed into app repos automatically
-# from this session — I don't have write access to app repos like
+# Thin per-app-repo caller for pipeline-orchestrator's
+# dev-pipeline-reusable.yml. This file is NOT pushed into app repos
+# automatically from this session — no write access to app repos like
 # BusyBuddy_v2 from agent-ops. Copy this into
-# `<app-repo>/.github/workflows/dev-pipeline.yml` yourself (roadmap Phase 3,
-# step 1), or generate it automatically for future projects via the
-# `scaffold_project` MCP tool (skills/shared/dev/project-scaffold/SKILL.md),
-# which writes this same content directly into a new repo once the GitHub
-# App is installed there.
+# `<app-repo>/.github/workflows/dev-pipeline.yml` yourself, or generate it
+# automatically for future projects via the `scaffold_pipeline` MCP tool
+# (pipeline-orchestrator's src/handlers/scaffold.ts), which writes this same
+# content directly into a new repo once the GitHub App is installed there.
 #
-# Values below are pre-filled for the pilot repo (BusyBuddy_v2 / app-1),
-# matching orchestrator/src/registry/development/projects.yaml — update both together
-# if either changes.
+# Values below are pre-filled for the pilot repo (BusyBuddy_v2 /
+# busybuddy-dev), matching orchestrator/src/registry/pipelines.yaml —
+# update both together if either changes.
 #
-# BREAKING (roadmap Phase 4.5): skill_folder was removed from
-# dev-pipeline-reusable.yml's inputs — skills are now matched by tag
-# instead of a fixed pointer (strategy doc §6). BusyBuddy_v2's live
-# .github/workflows/dev-pipeline.yml still passes skill_folder in its
-# `with:` block; passing an input the reusable workflow no longer
-# declares is a hard validation error, not a silent no-op, so plan/implement
-# runs on BusyBuddy_v2 will fail at trigger time until its own caller
-# workflow is updated to match this file (remove skill_folder). This
-# session can't push that change — needs the BusyBuddy_v2-scoped session.
+# BREAKING, needs manual action on BusyBuddy_v2 (no push access from this
+# session):
+# 1. The reusable workflow moved from HeyItsChloe/agent-ops to
+#    HeyItsChloe/pipeline-orchestrator — the `uses:` line below reflects the
+#    new location; BusyBuddy_v2's live caller still points at the old one.
+# 2. skills_repo_owner/skills_repo_name/skills_repo_branch are new required
+#    inputs (the reusable workflow generalized to accept any skills-holding
+#    control repo instead of hardcoding HeyItsChloe/agent-ops internally) —
+#    BusyBuddy_v2's live caller doesn't pass these yet.
+# 3. skill_folder was removed from dev-pipeline-reusable.yml's inputs even
+#    earlier than this split — skills are matched by applies_to tag, not a
+#    fixed pointer. If BusyBuddy_v2's live caller still passes skill_folder,
+#    that's also a hard validation error (an input the reusable workflow no
+#    longer declares), not a silent no-op.
+# Until BusyBuddy_v2's own .github/workflows/dev-pipeline.yml is updated to
+# match this file, plan/implement runs on it will fail at trigger time.
 
 name: dev-pipeline
 
@@ -42,8 +48,11 @@ jobs:
       contents: read
       packages: read
       id-token: write
-    uses: HeyItsChloe/agent-ops/.github/workflows/dev-pipeline-reusable.yml@main
+    uses: HeyItsChloe/pipeline-orchestrator/.github/workflows/dev-pipeline-reusable.yml@main
     with:
+      skills_repo_owner: HeyItsChloe
+      skills_repo_name: agent-ops
+      skills_repo_branch: main
       project_language: typescript
       test_command: "npm test -- --coverage"
       coverage_type: cobertura

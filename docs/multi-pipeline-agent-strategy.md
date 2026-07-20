@@ -4,6 +4,21 @@ A model-agnostic, multi-project automation system covering both software develop
 
 > **Revision note:** this version supersedes the original draft after a design review. Changes are called out inline as **(Revised)**; the rationale for each is in `docs/decisions-log.md`.
 
+> **Split note (2026-07-19):** the single-repo design described below (one
+> `orchestrator/` in `agent-ops` running both pipelines) has been split into
+> two repos. The generic engine + dev-ticket-pipeline handler moved to the
+> public, self-hosted `HeyItsChloe/pipeline-orchestrator` — see its README
+> for the registry format and how to write a custom pipeline handler.
+> `agent-ops/orchestrator` is now a thin bootstrap that imports that engine
+> as a dependency, registers the dev-ticket-pipeline handler (for
+> `busybuddy-dev`) and this repo's own private `job-search-pipeline` handler
+> (for `resume-job-applier`), and boots one server — see `src/index.ts`. The
+> two-file `registry/development/` + `registry/personal/` split described in
+> §6 is now one `registry/pipelines.yaml`. Everything else below —
+> triggers, the plan/implement/quality-gate flow, the personal pipeline's
+> discovery/sourcing mechanics, the-store — is still accurate; only *where
+> the code lives* changed, not what it does.
+
 ---
 
 ## 1. Goals

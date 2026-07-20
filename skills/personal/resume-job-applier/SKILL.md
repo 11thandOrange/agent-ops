@@ -5,7 +5,7 @@ description: Personal-assistant project skill for the resume builder + job appli
 
 # Resume builder + job applier
 
-Pilot personal project (roadmap Phase 7). `type: personal` in `registry/personal/projects.yaml`, invoked via the `run_personal_project_pipeline` MCP tool (Revised — was the generic `run_project_pipeline`, split into `run_development_project_pipeline`/`run_personal_project_pipeline` since dev and personal calls have structurally different shapes). Executed by `orchestrator/src/jobs/run_personal_pipeline.ts` — unlike the dev pipeline, there's no repo/CI runner to dispatch to, so the orchestrator itself calls the model gateway directly.
+Pilot personal project (roadmap Phase 7). `type: personal` in `orchestrator/src/registry/pipelines.yaml`, invoked via the `run_personal_project_pipeline` MCP tool (Revised — was the generic `run_project_pipeline`, split into `run_development_project_pipeline`/`run_personal_project_pipeline` since dev and personal calls have structurally different shapes). Executed by `orchestrator/src/jobs/run_personal_pipeline.ts` — unlike the dev pipeline, there's no repo/CI runner to dispatch to, so the orchestrator itself calls the model gateway directly.
 
 ## Hard rule: draft and queue, never auto-submit — the pipeline itself never does
 

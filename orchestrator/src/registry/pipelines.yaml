@@ -1,0 +1,53 @@
+# Unified registry — one entry per pipeline, replacing the old
+# registry/development/projects.yaml + registry/personal/projects.yaml
+# split. Adding a pipeline is a new entry here, not new engine code — see
+# pipeline-orchestrator's README for the full PipelineDefinition shape.
+
+- name: busybuddy-dev
+  handler: dev-ticket-pipeline
+  # Dev-ticket-pipeline skills are actually resolved at runtime by the
+  # reusable workflow's applies_to matching across all of skills/shared/dev/
+  # (see dev-pipeline-reusable.yml's "Match shared skills" step) — this
+  # deployment's skill_path is only used as the write target if
+  # scaffold_pipeline is later used to regenerate this project's skill.
+  # BusyBuddy_v2's real skill today is skills/shared/dev/project-conventions
+  # (applies_to: all), written by hand before scaffold_pipeline existed.
+  skill_path: skills/shared/dev/project-conventions
+  execution:
+    kind: github-actions
+    workflow: dev-pipeline-reusable.yml
+    owner: 11thandOrange
+    repo: BusyBuddy_v2
+  triggers:
+    labels:
+      approach-ready: plan
+      approved: implement
+    mentions:
+      "@dev-agent plan": plan
+      "@dev-agent implement": implement
+  params:
+    model_profile: implementation
+    project_language: [typescript]
+    test_command: "npm test -- --coverage"
+    coverage_type: cobertura
+    desired_coverage: 85
+    reviewer: heyitschloe
+
+- name: resume-job-applier
+  handler: job-search-pipeline
+  skill_path: skills/personal/resume-job-applier
+  execution:
+    kind: in-process
+  triggers:
+    chat_tool: run_personal_project_pipeline
+    http_kind: personal
+  params:
+    model_profile: planning
+    resume_source:
+      mode: generated_pdf
+    cover_letter_source:
+      mode: generated_pdf
+    sourcing_method: scraping
+    strategy: scrapeOne
+    max_results: 10
+    search_provider: serpapi

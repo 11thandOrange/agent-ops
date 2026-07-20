@@ -1,18 +1,18 @@
 {
   "name": "agent-ops-orchestrator",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Trigger-agnostic orchestrator for the multi-pipeline agent automation system",
+  "description": "This deployment's bootstrap: the generic pipeline-orchestrator engine, registered with the dev-ticket-pipeline handler (busybuddy-dev) and this repo's own private job-search-pipeline handler (resume-job-applier).",
   "type": "module",
   "scripts": {
     "build": "tsc && npm run copy-registry",
-    "copy-registry": "mkdir -p dist/registry/development dist/registry/personal && cp src/registry/development/projects.yaml dist/registry/development/ && cp src/registry/personal/projects.yaml dist/registry/personal/",
-    "start": "node dist/server.js",
-    "dev": "tsx watch src/server.ts",
+    "copy-registry": "mkdir -p dist/registry && cp src/registry/pipelines.yaml dist/registry/",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.9.0",
+    "pipeline-orchestrator": "github:HeyItsChloe/pipeline-orchestrator#main",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "pdfkit": "^0.15.0",

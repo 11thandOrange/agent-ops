@@ -1,7 +1,13 @@
-# Multi-stage build: compile TypeScript, then run the plain JS output with
-# only production dependencies. Cloud Run injects PORT (defaults to 8080),
-# which server.ts already reads via process.env.PORT — no hardcoding needed
-# here, unlike litellm/Dockerfile.
+# Multi-stage build: compile TypeScript (including pipeline-orchestrator's
+# own build, triggered by its `prepare` script since it's installed as a git
+# dependency), then copy the already-built node_modules + dist into a lean
+# runtime image. Deliberately NOT a second `npm ci --omit=dev` in the
+# production stage: that would re-resolve pipeline-orchestrator from git and
+# re-run its `prepare` build, and --omit=dev's interaction with a git
+# dependency's own devDependencies (needed for ITS build) is a real, easy
+# way to end up with a broken/missing dist/ in production. Copying the
+# already-built tree from the build stage sidesteps that entirely, at the
+# cost of carrying build-time devDependencies into the final image.
 FROM node:20-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -13,16 +19,13 @@ RUN npm run build
 FROM node:20-slim
 WORKDIR /app
 ENV NODE_ENV=production
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-# (New) sourcing_method: scraping and strategy: scrapeAll both launch
-# headless Chromium via the `playwright` dependency above — node:20-slim
-# has no browser binaries or the OS packages Chromium needs to run
-# (libnss3, libatk, etc.), so both are installed here at build time rather
-# than left to fail at first request. Adds real image size/build time;
-# accepted as the cost of the scraping/discovery features actually working
-# in production rather than only locally where a full Playwright install
-# happens to already exist.
-RUN npx playwright install --with-deps chromium
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
-CMD ["node", "dist/server.js"]
+# sourcing_method: scraping and strategy: scrapeAll both launch headless
+# Chromium via the `playwright` dependency — node:20-slim has no browser
+# binaries or the OS packages Chromium needs to run (libnss3, libatk, etc.),
+# so both are installed here at build time rather than left to fail at
+# first request.
+RUN npx playwright install --with-deps chromium
+CMD ["node", "dist/index.js"]

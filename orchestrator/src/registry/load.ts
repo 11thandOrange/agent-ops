@@ -1,26 +1,30 @@
-// Local-filesystem registry loader. registry/development and
-// registry/personal are yaml files, not TypeScript, so tsc doesn't copy
-// them into dist/ on its own — package.json's build script copies them
-// alongside the compiled output (see build script). Resolved relative to
-// this module's own compiled location so it works the same whether running
-// from src/ (tsx dev) or dist/ (the deployed container).
+// Tiny local reader for this deployment's own registry/pipelines.yaml —
+// used only by the Chrome-extension routes (triggers/applications_lookup.ts,
+// generate_answer.ts) to validate a project name and read its params. The
+// engine (pipeline-orchestrator's createServer) loads and validates the same
+// file independently for actual pipeline dispatch; this is a second, much
+// narrower reader for routes that live outside the engine's own trigger
+// surface — see index.ts for why those routes are mounted here rather than
+// inside the engine itself.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import YAML from "yaml";
-import type { DevProjectEntry, PersonalProjectEntry } from "../types.js";
+import type { JobSearchParams } from "../types.js";
 
-const REGISTRY_DIR = path.dirname(fileURLToPath(import.meta.url));
-
-function readEntries<T>(file: string): T[] {
-  const raw = readFileSync(path.join(REGISTRY_DIR, file), "utf-8");
-  return (YAML.parse(raw) as T[]) ?? [];
+interface RawPipelineEntry {
+  name: string;
+  handler: string;
+  skill_path: string;
+  params: Record<string, unknown>;
 }
 
-export function loadDevProject(name: string): DevProjectEntry | undefined {
-  return readEntries<DevProjectEntry>("development/projects.yaml").find((p) => p.project === name);
-}
+const DEFAULT_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "pipelines.yaml");
 
-export function loadPersonalProject(name: string): PersonalProjectEntry | undefined {
-  return readEntries<PersonalProjectEntry>("personal/projects.yaml").find((p) => p.project === name);
+export function loadJobSearchPipeline(name: string, registryPath = DEFAULT_PATH): JobSearchParams | undefined {
+  const raw = readFileSync(registryPath, "utf-8");
+  const entries = (raw.trim() ? (YAML.parse(raw) as RawPipelineEntry[]) : []) ?? [];
+  const entry = entries.find((e) => e.name === name && e.handler === "job-search-pipeline");
+  if (!entry) return undefined;
+  return { skill_path: entry.skill_path, ...(entry.params as Omit<JobSearchParams, "skill_path">) };
 }
