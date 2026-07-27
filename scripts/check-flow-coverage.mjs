@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Cross-checks a repo's critical-flow manifest against actual test results, for
- * visual-pipeline-reusable.yml's coverage requirement (BusyBuddy_v2#285 Phase 6):
+ * e2e-pipeline-reusable.yml's coverage requirement (BusyBuddy_v2#285 Phase 6):
  * not just "the suite passed," but "every *declared* flow specifically ran and
  * passed" - catches a flow's test being silently deleted while everything else
  * still passes.

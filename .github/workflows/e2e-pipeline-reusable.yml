@@ -1,8 +1,8 @@
-name: visual-pipeline-reusable
+name: e2e-pipeline-reusable
 
-# Shared e2e/visual-test pipeline (BusyBuddy_v2#285 Phase 6). Lives here, once,
+# Shared e2e test pipeline (BusyBuddy_v2#285 Phase 6). Lives here, once,
 # centrally - each app repo keeps only a thin caller (see
-# templates/visual-pipeline-caller.yml) that passes its own install/test commands.
+# templates/e2e-pipeline-caller.yml) that passes its own install/test commands.
 #
 # Shared: checkout, artifact upload, PR comment, the record_video toggle, and the
 # coverage requirement (tests exist and pass + every critical flow has a test,
@@ -55,7 +55,7 @@ on:
 
 jobs:
   # ── Non-emulator path (Playwright, or any future non-Android e2e stack) ──
-  visual-tests:
+  e2e-tests:
     if: inputs.needs_emulator == false
     runs-on: ubuntu-latest
     permissions:
@@ -100,7 +100,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: visual-test-results
+          name: e2e-test-results
           path: ${{ inputs.working_directory }}/test-results/**
           if-no-files-found: ignore
 
@@ -108,7 +108,7 @@ jobs:
         if: always() && inputs.record_video
         uses: actions/upload-artifact@v4
         with:
-          name: visual-test-video
+          name: e2e-test-video
           path: ${{ inputs.working_directory }}/test-results/**/*.webm
           if-no-files-found: ignore
 
@@ -125,11 +125,11 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `## ${icon} Visual/E2E Tests — ${status}\n\nSee the [CI run](${runUrl}) for details.`,
+              body: `## ${icon} E2E Tests — ${status}\n\nSee the [CI run](${runUrl}) for details.`,
             });
 
   # ── Emulator path (Android/Espresso) ──
-  visual-tests-emulator:
+  e2e-tests-emulator:
     if: inputs.needs_emulator == true
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -183,7 +183,7 @@ jobs:
           working-directory: ${{ inputs.working_directory }}
           script: |
             if [ "${{ inputs.record_video }}" = "true" ]; then
-              adb shell screenrecord --time-limit 1800 /sdcard/visual-test-run.mp4 &
+              adb shell screenrecord --time-limit 1800 /sdcard/e2e-test-run.mp4 &
               RECORDER_PID=$!
             fi
 
@@ -193,7 +193,7 @@ jobs:
             if [ "${{ inputs.record_video }}" = "true" ]; then
               kill -INT "$RECORDER_PID" 2>/dev/null || true
               sleep 2
-              adb pull /sdcard/visual-test-run.mp4 ./visual-test-run.mp4 || true
+              adb pull /sdcard/e2e-test-run.mp4 ./e2e-test-run.mp4 || true
             fi
 
             exit $TEST_EXIT
@@ -215,7 +215,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: visual-test-results
+          name: e2e-test-results
           path: |
             ${{ inputs.working_directory }}/build/outputs/androidTest-results/**
             ${{ inputs.working_directory }}/build/reports/androidTests/**
@@ -225,8 +225,8 @@ jobs:
         if: always() && inputs.record_video
         uses: actions/upload-artifact@v4
         with:
-          name: visual-test-video
-          path: ${{ inputs.working_directory }}/visual-test-run.mp4
+          name: e2e-test-video
+          path: ${{ inputs.working_directory }}/e2e-test-run.mp4
           if-no-files-found: ignore
 
       - name: Post PR comment
@@ -242,5 +242,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `## ${icon} Visual/E2E Tests — ${status}\n\nSee the [CI run](${runUrl}) for details.`,
+              body: `## ${icon} E2E Tests — ${status}\n\nSee the [CI run](${runUrl}) for details.`,
             });

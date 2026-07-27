@@ -1,8 +1,8 @@
 # Reference template for the thin caller a managed repo needs to use
-# visual-pipeline-reusable.yml (BusyBuddy_v2#285 Phase 6). Two worked examples
+# e2e-pipeline-reusable.yml (BusyBuddy_v2#285 Phase 6). Two worked examples
 # below - copy whichever matches the target repo's stack, delete the other.
 
-name: visual-pipeline
+name: e2e-pipeline
 
 on:
   pull_request:
@@ -19,7 +19,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    uses: 11thandOrange/agent-ops/.github/workflows/visual-pipeline-reusable.yml@main
+    uses: 11thandOrange/agent-ops/.github/workflows/e2e-pipeline-reusable.yml@main
     with:
       working_directory: CHANGE_ME # e.g. extensions/bogo-shopify-app
       install_command: "npx playwright install chromium --with-deps"
@@ -33,7 +33,7 @@ jobs:
   #   permissions:
   #     contents: read
   #     pull-requests: write
-  #   uses: 11thandOrange/agent-ops/.github/workflows/visual-pipeline-reusable.yml@main
+  #   uses: 11thandOrange/agent-ops/.github/workflows/e2e-pipeline-reusable.yml@main
   #   with:
   #     working_directory: app
   #     test_command: "./gradlew connectedDebugAndroidTest"
