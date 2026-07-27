@@ -1,0 +1,133 @@
+# wiki.config.yaml - per-repo configuration for the shared wiki generator
+# (agent-ops issue #286). Copy this file to the consuming repo's root as
+# `wiki.config.yaml`, fill in real values, and point the reusable workflow
+# caller (templates/wiki-caller.yml) at it.
+#
+# The driver (scripts/wiki-generate.mjs) reads exactly this file and runs
+# only the extractors listed under `extractors:` whose `enabled` is true.
+# Adding a new extractor kind later means adding one new module under
+# scripts/wiki-extractors/ plus one new key here - the driver's core loop
+# never needs to change (issue #286's extensibility requirement).
+#
+# All theming/title/favicon values below are literal, deterministic strings
+# - nothing here is ever LLM-generated.
+
+site:
+  # Rendered in the header, browser tab, and as the default page title.
+  title: "BusyBuddy Docs"
+  description: "Public documentation and API reference for BusyBuddy."
+  # CSS custom property values, applied at runtime (see src/lib/theme.ts).
+  # Any valid CSS color. accentHover/accentMuted are optional - computed
+  # from accent via color-mix() at runtime if omitted.
+  theme:
+    accent: "#5169DD"
+    accentHover: "#4257c4"
+    accentMuted: "rgba(81, 105, 221, 0.1)"
+  # Path under templates/wiki-site/public (or the consuming repo's own
+  # public/ override dir, if configured) - copied into the build's favicon
+  # link tag as-is.
+  favicon: "/favicon.svg"
+  githubUrl: "https://github.com/11thandOrange/BusyBuddy_v2"
+  # Optional - written to public/CNAME by the driver if set, same as the
+  # current hand-maintained docs sites.
+  customDomain: "busybuddy.dev"
+
+# The wiki-backend instance this site's Sandbox ("Try it") panel proxies
+# "Try it" requests through, and the real upstream API those requests get
+# forwarded to. See templates/wiki-backend/README.md.
+backend:
+  # Same-origin (or CORS-allowed) base URL of this repo's deployed
+  # wiki-backend instance. The frontend never calls targetApiBaseUrl
+  # directly - only ever this proxy.
+  proxyBaseUrl: "https://busybuddy-wiki-backend.example.com"
+  # The real API the proxy forwards sandbox requests to. Per-app, since
+  # each wiki documents one app's own API.
+  targetApiBaseUrl: "https://your-store.myshopify.com"
+
+extractors:
+  # Kind 1: Express (JS/TS) backend routes -> endpoints.ts
+  endpointsExpress:
+    enabled: true
+    # Glob(s) matched from the repo root. Mirrors BusyBuddy_v2's
+    # web/backend/routes/**/index.js layout (one router file per feature
+    # folder) - see .agents/agents/busybuddy-api-spec-generator.md.
+    routesGlob:
+      - "web/backend/routes/**/index.js"
+    # The top-level router file that mounts each feature router under its
+    # path prefix (router.use('/subscription', subscriptionRoutes)) - read
+    # to resolve each route file's mount prefix.
+    mountFile: "web/backend/routes/index.js"
+    # Optional: controller dir to read for req.body/req.query param
+    # inference, matched by import path from the routes file.
+    controllerDir: "web/backend/controller"
+    # Route files (relative to repo root) that are reachable without a
+    # session, e.g. an app-proxy or public router - flagged liveTestable.
+    publicRouteFiles:
+      - "web/backend/routes/frontStore/index.js"
+    # Prefix applied on top of mountFile's own router.use() prefixes, for
+    # apps that mount the whole routes/index.js router again one level up
+    # (BusyBuddy_v2's web/index.js does `app.use("/api", router)`) - that
+    # outer mount isn't visible from mountFile alone.
+    apiPrefix: "/api"
+
+  # Kind 2: Kotlin Retrofit interfaces -> endpoints.ts
+  endpointsKotlin:
+    enabled: false
+    # Mirrors OrderMate's app/src/main/java/com/orderMate/networkManager
+    # layout - see ordermate's .agents/agents/api-spec-generator.md.
+    interfaceGlob:
+      - "app/src/main/java/com/orderMate/networkManager/*.kt"
+
+  # Kind 3: GH Actions workflows -> workflows.ts
+  workflows:
+    enabled: true
+    glob:
+      - ".github/workflows/*.yml"
+    # Workflow filenames to skip (e.g. retired/legacy, or this generator's
+    # own reusable workflow if vendored into the repo).
+    exclude:
+      - "openhands.yml.legacy"
+
+  # Kind 4: this repo's entry (or entries) in agent-ops's pipelines.yaml -> automation.ts
+  automation:
+    enabled: true
+    # Path is resolved against the checked-out control-repo (agent-ops)
+    # working copy inside the reusable workflow - see
+    # .github/workflows/wiki-generate-reusable.yml.
+    pipelinesYamlPath: "orchestrator/src/registry/pipelines.yaml"
+    # Matched against each pipeline entry's execution.owner/execution.repo.
+    repoMatch: "11thandOrange/BusyBuddy_v2"
+
+  # Kind 5: test suites (suite-level only, not individual test cases) -> tests.ts
+  tests:
+    enabled: true
+    suites:
+      - name: "Storefront E2E"
+        framework: playwright
+        glob: "extensions/bogo-shopify-app/**/*.spec.ts"
+      - name: "Backend unit/integration"
+        framework: vitest
+        glob: "web/backend/**/*.test.js"
+
+  # Kind 6: existing markdown docs, ingested verbatim (not LLM-rewritten) -> pages.ts
+  markdown:
+    enabled: true
+    sources:
+      - glob: "docs/planning/*.md"
+        navSection: "Planning"
+      - glob: "ROADMAP.md"
+        navSection: "Roadmap"
+
+  # Kind 7: frontend/app-list extraction -> apps.ts
+  appList:
+    enabled: true
+    # File containing the widget/app config array to read (BusyBuddy's
+    # DashboardHome.jsx widgetConfig/planFeatures pattern).
+    sourceFile: "web/frontend/pages/DashboardHome.jsx"
+    widgetConfigExport: "widgetConfig"
+    planFeaturesExport: "planFeatures"
+
+# Where generated output is written, relative to the wiki-site checkout root.
+output:
+  dataDir: "src/data"
+  contentDir: "src/content"

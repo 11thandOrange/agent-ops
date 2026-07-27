@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Fallback defaults - overwritten at runtime by src/lib/theme.ts from
+     wiki.config.generated.ts before first paint (see main.tsx). */
+  --wiki-accent: #5169dd;
+  --wiki-accent-hover: #4257c4;
+  --wiki-accent-muted: rgba(81, 105, 221, 0.1);
+}
+
+body {
+  @apply bg-background text-content font-sans antialiased;
+}
+
+.transition-fast {
+  transition: all 0.15s ease;
+}
+
+.rounded-button {
+  border-radius: 10px;
+}
+
+.rounded-input {
+  border-radius: 8px;
+}
+
+.rounded-card {
+  border-radius: 14px;
+}
+
+.prose-body {
+  @apply text-content-secondary leading-relaxed;
+}
+
+.text-heading-lg {
+  @apply text-3xl;
+}
+
+.text-heading-sm {
+  @apply text-lg;
+}
+
+.markdown-body h1 {
+  @apply text-heading-lg font-bold text-white mt-8 mb-4;
+}
+.markdown-body h2 {
+  @apply text-xl font-semibold text-white mt-6 mb-3;
+}
+.markdown-body h3 {
+  @apply text-heading-sm font-semibold text-white mt-5 mb-2;
+}
+.markdown-body p {
+  @apply prose-body mb-4;
+}
+.markdown-body ul {
+  @apply list-disc list-inside prose-body mb-4 space-y-1;
+}
+.markdown-body ol {
+  @apply list-decimal list-inside prose-body mb-4 space-y-1;
+}
+.markdown-body a {
+  @apply text-brand underline;
+}
+.markdown-body code {
+  @apply rounded-input bg-surface px-1.5 py-0.5 font-mono text-sm text-content;
+}
+.markdown-body pre {
+  @apply rounded-input border border-surface-border bg-white/[0.02] p-4 overflow-x-auto mb-4;
+}
+.markdown-body pre code {
+  @apply bg-transparent p-0;
+}
