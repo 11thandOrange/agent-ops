@@ -1,0 +1,90 @@
+name: sync-upstream
+
+# Keeps this fork's main in sync with the canonical, private
+# HeyItsChloe/agent-ops main. See CONTRIBUTING.md "Fork-only content" for
+# why a conflicting sync must never auto-resolve: this fork can carry
+# 11thandOrange-only content (marked `FORK-ONLY: do not upstream`) that a
+# routine sync must not silently overwrite.
+
+on:
+  schedule:
+    # Daily, 09:00 UTC. Frequent enough that this fork doesn't drift far
+    # behind upstream, infrequent enough not to spam PRs on conflict.
+    - cron: "0 9 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          # Default GITHUB_TOKEN is used for the push/PR side (this repo's
+          # own token already has write access to itself) — but checkout
+          # still needs a token now so the later `git push` steps below
+          # authenticate correctly against this repo.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Mint upstream-scoped App token
+        uses: actions/create-github-app-token@v1
+        id: upstream-token
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: HeyItsChloe
+          repositories: agent-ops
+
+      - name: Fetch upstream main
+        run: |
+          git remote add upstream "https://x-access-token:${{ steps.upstream-token.outputs.token }}@github.com/HeyItsChloe/agent-ops.git"
+          git fetch upstream main
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Attempt merge
+        id: merge
+        run: |
+          # git merge, never rebase — rebasing would rewrite this fork's own
+          # commit history, including fork-only commits (CONTRIBUTING.md).
+          if git merge --no-edit upstream/main; then
+            echo "conflict=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push clean merge directly to main
+        if: steps.merge.outputs.conflict == 'false'
+        run: git push origin HEAD:main
+
+      - name: Abort merge and prep conflict branch
+        if: steps.merge.outputs.conflict == 'true'
+        run: |
+          # Do NOT attempt auto-resolution. Re-run the merge so the conflict
+          # markers land in a branch a human can look at, instead of trying
+          # to guess a resolution here.
+          git merge --abort || true
+          BRANCH="sync/upstream-${{ github.run_id }}"
+          git checkout -b "$BRANCH"
+          git merge --no-edit upstream/main || true
+          git push origin "$BRANCH"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+        id: conflict-branch
+
+      - name: Open PR for human resolution
+        if: steps.merge.outputs.conflict == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --title "sync-upstream: conflict merging HeyItsChloe/agent-ops main" \
+            --body "Automatic merge of upstream \`HeyItsChloe/agent-ops\` \`main\` hit conflicts and was not auto-resolved (see CONTRIBUTING.md). Review the conflict markers on this branch, paying special attention to any file marked \`FORK-ONLY: do not upstream\` — those should generally keep this fork's version. Resolve and merge by hand." \
+            --base main \
+            --head "${{ steps.conflict-branch.outputs.branch }}"
