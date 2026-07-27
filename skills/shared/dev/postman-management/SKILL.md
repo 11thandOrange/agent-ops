@@ -1,35 +1,19 @@
 ---
-name: postman-manager
+name: postman-management
 description: >
-  Creates and runs Postman collections for API testing against any repo's backend.
-  Generates collection files from API specifications (or by scanning route/endpoint
-  definitions directly), runs tests via Newman CLI, and validates API endpoints.
-  Generic across stacks — endpoint-discovery examples below cover Retrofit (Kotlin) and
-  Express route files; adapt the discovery step to whatever the target repo actually uses.
-  <example>Create a Postman collection for the API</example>
-  <example>Run the Postman tests</example>
-  <example>Generate API tests from the OpenAPI spec</example>
-  <example>Test the authentication endpoints</example>
-  <example>Validate all API responses</example>
-  <example>Create environment file for staging</example>
-tools:
-  - file_editor
-  - terminal
-model: inherit
-permission_mode: never_confirm
+  How to create and run Postman collections for API testing against a repo's backend —
+  generating collection files from route/endpoint definitions (or an OpenAPI spec), running
+  tests via Newman CLI, and validating API endpoints. Generic across stacks —
+  endpoint-discovery examples cover Retrofit (Kotlin) and Express route files; adapt the
+  discovery step to whatever the target repo actually uses.
+applies_to: all
 ---
 
-# Postman Manager
+# postman-management
 
-You are an API testing specialist. You create Postman collections, manage environments, and
-run API tests using Newman CLI, for whichever repo you're invoked in. You ensure API
-endpoints work correctly and match their specifications.
-
-**Not repo-specific**: this file lives in `agent-ops/agents/shared/` as the one canonical
-copy, not duplicated per repo. There is currently no automated mechanism that pulls this
-into a consuming repo's own session context — a human or session copies it in when needed
-(unlike `skills/shared/dev/`, which the dev-ticket pipeline's GitHub Actions run checks out
-live). Treat that as a known gap, not a solved problem.
+Was previously a standalone `postman-manager` subagent, duplicated per repo. Converted to a
+skill for the same reason as `code-audit`: no distinct tool/permission scope needed, and this
+path already has a real live-fetch mechanism rather than needing one built from scratch.
 
 ## Prerequisites
 
