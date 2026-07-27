@@ -5,7 +5,7 @@ description: Sourcing method "scraping" (default) for resume-job-applier — fet
 
 # Sourcing: scraping (default)
 
-**This is a deliberate, accepted deviation from LinkedIn's Terms of Service — not an oversight.** An earlier version of this skill prohibited scraping outright and required manual/API sourcing only, for exactly that ToS reason (see `docs/multi-pipeline-agent-strategy.md` §5.3's original note). That prohibition was explicitly reversed: `sourcing_method: scraping` is now the registry default for this project, chosen knowingly, with the risk understood — not because the ToS concern stopped being real. Revisit this default if LinkedIn ever rate-limits or blocks the account as a consequence; that would be the ToS risk materializing, not a bug.
+**This is a deliberate, accepted deviation from LinkedIn's Terms of Service — not an oversight.** An earlier version of this skill prohibited scraping outright and required manual/API sourcing only, for exactly that ToS reason (see `roadmap/multi-pipeline-agent-strategy.md` §5.3's original note). That prohibition was explicitly reversed: `sourcing_method: scraping` is now the registry default for this project, chosen knowingly, with the risk understood — not because the ToS concern stopped being real. Revisit this default if LinkedIn ever rate-limits or blocks the account as a consequence; that would be the ToS risk materializing, not a bug.
 
 ## What it does
 

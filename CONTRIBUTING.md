@@ -37,9 +37,6 @@ inappropriate upstream, not for flagging individual fields.
 
 ### Currently marked fork-only
 
-- `pipelines.yaml` (repo root) — 11thandOrange-specific staging registry
-  entries (see the file's own header comment for why this is separate from
-  `orchestrator/src/registry/pipelines.yaml`).
 - `skills/shared/dev/android-conventions/SKILL.md` — OrderMate is an
   11thandOrange-only Kotlin/Android project; upstream `HeyItsChloe/agent-ops`
   has no Kotlin/Android pipeline today, so this hasn't been confirmed to
