@@ -1,0 +1,43 @@
+# Reference template for the thin caller a managed repo needs to use
+# e2e-pipeline-reusable.yml (BusyBuddy_v2#285 Phase 6). Two worked examples
+# below - copy whichever matches the target repo's stack, delete the other.
+
+name: e2e-pipeline
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      record_video:
+        type: boolean
+        default: false
+
+jobs:
+  # ── Example: Playwright (e.g. BusyBuddy_v2) ──
+  playwright:
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: 11thandOrange/agent-ops/.github/workflows/e2e-pipeline-reusable.yml@main
+    with:
+      working_directory: CHANGE_ME # e.g. extensions/bogo-shopify-app
+      install_command: "npx playwright install chromium --with-deps"
+      test_command: "npm run test:e2e"
+      needs_emulator: false
+      record_video: ${{ inputs.record_video || false }}
+      coverage_manifest_path: e2e-coverage.yaml # omit/empty to skip the flow-coverage check
+
+  # ── Example: Android/Espresso (e.g. OrderMate) ──
+  # espresso:
+  #   permissions:
+  #     contents: read
+  #     pull-requests: write
+  #   uses: 11thandOrange/agent-ops/.github/workflows/e2e-pipeline-reusable.yml@main
+  #   with:
+  #     working_directory: app
+  #     test_command: "./gradlew connectedDebugAndroidTest"
+  #     needs_emulator: true
+  #     emulator_api_level: 30
+  #     record_video: ${{ inputs.record_video || false }}
+  #     coverage_manifest_path: e2e-coverage.yaml
