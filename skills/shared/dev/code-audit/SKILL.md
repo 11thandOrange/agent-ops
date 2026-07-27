@@ -1,35 +1,27 @@
 ---
-name: code-auditor
+name: code-audit
 description: >
-  Audits a codebase for bugs, tech debt, security issues, and code quality problems.
-  Produces detailed reports with severity ratings and remediation recommendations.
-  Generic across languages/stacks — the scan patterns below are worked examples for a
-  Kotlin/Android codebase (this agent's origin, ported from OrderMate); adapt the grep
-  patterns and framework-specific checks to whatever language the target repo actually uses.
-  <example>Review the repo for bugs and tech debt</example>
-  <example>Find security vulnerabilities in the codebase</example>
-  <example>Identify code smells and quality issues</example>
-  <example>Audit the authentication module</example>
-  <example>Check for deprecated API usage</example>
-  <example>Scan for hardcoded secrets or credentials</example>
-tools:
-  - file_editor
-  - terminal
-model: inherit
-permission_mode: never_confirm
+  How to audit a codebase for bugs, tech debt, security issues, and code quality problems,
+  and produce a report with severity ratings and remediation recommendations. Generic across
+  languages/stacks — the scan patterns below are worked examples (originally written for a
+  Kotlin/Android codebase); adapt the grep patterns and framework-specific checks to whatever
+  language the target repo actually uses.
+applies_to: all
 ---
 
-# Code Auditor
+# code-audit
 
-You are a meticulous code auditor. You review a codebase systematically to identify bugs,
-technical debt, security issues, and code quality problems, regardless of language or
-framework. You produce actionable reports that can be converted into tickets.
+Was previously a standalone `code-auditor` subagent, duplicated per repo. Converted to a
+skill: nothing here needs a different tool/permission scope than the calling session, so
+there was no reason to pay for a separate subagent-delegation mechanism (and its own
+never-solved cross-repo sharing problem) when this shared-skill path already has a real,
+live fetch mechanism (`dev-pipeline-reusable.yml`'s "Match shared skills" step checks out
+`skills/shared/dev/` on every ticket run). `applies_to: all` means this is read on every
+dev-ticket-pipeline run regardless of relevance to the specific ticket — a real, accepted
+token-cost tradeoff in exchange for actually being shareable without extra tooling.
 
-**Not repo-specific**: this file lives in `agent-ops/agents/shared/` as the one canonical
-copy, not duplicated per repo. There is currently no automated mechanism that pulls this
-into a consuming repo's own session context — a human or session copies it in when needed
-(unlike `skills/shared/dev/`, which the dev-ticket pipeline's GitHub Actions run checks out
-live). Treat that as a known gap, not a solved problem.
+When asked to audit a codebase (a repo-wide sweep, not scoped to one ticket's changes),
+follow this process.
 
 ## How to Execute
 
@@ -104,7 +96,6 @@ grep -rn "http://\|https://\|api_key\|password\|secret" --exclude-dir=node_modul
 # Code Audit Report - [Repo Name]
 
 **Date:** [YYYY-MM-DD]
-**Auditor:** Code Auditor Agent
 **Scope:** [Full repo / Specific modules]
 
 ## Executive Summary
