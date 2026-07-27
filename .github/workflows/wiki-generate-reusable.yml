@@ -1,0 +1,181 @@
+name: wiki-generate-reusable
+
+# The shared wiki generator's actual CI logic lives here, once, centrally
+# (agent-ops issue #286, mirroring dev-pipeline-reusable.yml's pattern for
+# the dev-ticket pipeline - see that file's own header comment) - app repos
+# keep only a thin caller workflow (templates/wiki-caller.yml) that passes
+# their own site_dir/config values.
+#
+# Flow: checkout the calling ("target") repo (already the default checkout
+# context for a workflow_call job) + this control repo (agent-ops, cross-
+# account, same GH App token trick as dev-pipeline-reusable.yml) -> run
+# scripts/wiki-generate.mjs, which reads the target repo's wiki.config.yaml
+# and runs only the extractors it declares -> commit any changed generated
+# files back to the target repo's default branch -> build the site -> ship
+# it to GitHub Pages via the same upload-pages-artifact/deploy-pages steps
+# BusyBuddy_v2's own deploy-docs.yml already uses.
+
+on:
+  workflow_call:
+    inputs:
+      # Directory (relative to the target repo's root) the wiki site lives
+      # in / is bootstrapped into. Matches wiki.config.yaml's own location
+      # (repo root) being separate from the site itself.
+      site_dir:
+        required: false
+        type: string
+        default: docs
+      # Path to wiki.config.yaml, relative to the target repo's root.
+      config_path:
+        required: false
+        type: string
+        default: wiki.config.yaml
+      # owner/repo of this control repo (agent-ops) - overridable per caller
+      # in case a fork needs to point at its own copy while iterating.
+      control_repo:
+        required: false
+        type: string
+        default: HeyItsChloe/agent-ops
+      control_repo_ref:
+        required: false
+        type: string
+        default: main
+    secrets:
+      GH_APP_ID:
+        required: true
+      GH_APP_PRIVATE_KEY:
+        required: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: wiki-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  generate-and-commit:
+    runs-on: ubuntu-latest
+    # Needed to push the generator's output back to the target repo's
+    # default branch - broader than the job-level `permissions:` block
+    # above, which is why it's declared again here (reusable-workflow
+    # permissions are the intersection of caller-granted and callee-
+    # requested, same rule dev-pipeline-reusable.yml documents).
+    permissions:
+      contents: write
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+    steps:
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # agent-ops (this workflow's own repo) lives under a different GitHub
+      # account than most target repos (e.g. 11thandOrange/BusyBuddy_v2),
+      # so reading scripts/wiki-extractors and templates/ needs its own
+      # checkout + its own GH App token, exactly as dev-pipeline-reusable.yml
+      # does for skills/.
+      - name: Parse control repo owner/name
+        id: control
+        run: |
+          IFS='/' read -r OWNER NAME <<< "${{ inputs.control_repo }}"
+          echo "owner=$OWNER" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+      - uses: actions/create-github-app-token@v1
+        id: control-repo-token
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ steps.control.outputs.owner }}
+          repositories: ${{ steps.control.outputs.name }}
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.control_repo }}
+          ref: ${{ inputs.control_repo_ref }}
+          token: ${{ steps.control-repo-token.outputs.token }}
+          path: .wiki-control
+      # Same reasoning as dev-pipeline-reusable.yml's ".agent-ops" exclude -
+      # keeps this nested checkout out of git add/status for the target
+      # repo's own working tree without touching its committed .gitignore.
+      - name: Exclude .wiki-control from git
+        run: echo ".wiki-control/" >> .git/info/exclude
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install generator script dependencies
+        run: npm install --no-audit --no-fund
+        working-directory: .wiki-control/scripts
+
+      - name: Run wiki generator
+        run: |
+          node .wiki-control/scripts/wiki-generate.mjs \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --control-repo "$GITHUB_WORKSPACE/.wiki-control" \
+            --config "$GITHUB_WORKSPACE/${{ inputs.config_path }}" \
+            --site-dir "${{ inputs.site_dir }}"
+
+      - name: Commit generated changes
+        id: commit
+        run: |
+          git config user.name "wiki-generator[bot]"
+          git config user.email "wiki-generator[bot]@users.noreply.github.com"
+          git add "${{ inputs.site_dir }}"
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No generated changes to commit."
+          else
+            git commit -m "chore(wiki): update generated docs site content
+
+Automated update from scripts/wiki-generate.mjs (agent-ops issue #286) -
+add/updated content only, existing entries whose source is unchanged are
+left untouched."
+            git push origin HEAD:${{ github.ref_name }}
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-and-deploy:
+    needs: generate-and-commit
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # Re-checkout at the tip of the branch the previous job may have just
+      # pushed to, so the build picks up the freshly-generated/committed
+      # content rather than the pre-generation tree actions/checkout@v4
+      # captured at workflow start.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          # No `cache: npm` here (deliberately) - a freshly-bootstrapped
+          # site (see scripts/wiki-generate.mjs's bootstrapSiteIfMissing())
+          # has no package-lock.json yet on its very first run, and
+          # actions/setup-node's npm cache hard-fails when the lockfile it's
+          # told to key on doesn't exist.
+
+      - name: Install site dependencies
+        working-directory: ${{ inputs.site_dir }}
+        run: npm install --no-audit --no-fund
+
+      - name: Build
+        working-directory: ${{ inputs.site_dir }}
+        run: npm run build
+
+      - uses: actions/configure-pages@v4
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ inputs.site_dir }}/dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

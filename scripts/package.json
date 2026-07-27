@@ -1,0 +1,10 @@
+{
+  "name": "wiki-generator-scripts",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Dependencies for scripts/wiki-generate.mjs and scripts/wiki-extractors/*.mjs (agent-ops issue #286).",
+  "dependencies": {
+    "yaml": "^2.5.0"
+  }
+}
