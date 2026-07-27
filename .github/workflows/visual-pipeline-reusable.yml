@@ -1,0 +1,246 @@
+name: visual-pipeline-reusable
+
+# Shared e2e/visual-test pipeline (BusyBuddy_v2#285 Phase 6). Lives here, once,
+# centrally - each app repo keeps only a thin caller (see
+# templates/visual-pipeline-caller.yml) that passes its own install/test commands.
+#
+# Shared: checkout, artifact upload, PR comment, the record_video toggle, and the
+# coverage requirement (tests exist and pass + every critical flow has a test,
+# via a per-repo manifest). Repo-specific: which test framework actually runs
+# (Playwright vs. Gradle/Espresso) - never hardcoded here, always an opaque
+# input this workflow passes through without interpreting.
+#
+# needs_emulator exists because Android's instrumented tests aren't a "run a
+# command" problem the way Playwright is - the emulator has to be booted and
+# stay live for the whole test_command run, not just present beforehand. That's
+# the one real branch point; everything else is identical between stacks.
+
+on:
+  workflow_call:
+    inputs:
+      working_directory:
+        required: true
+        type: string
+      install_command:
+        description: Repo-specific setup (e.g. "npx playwright install chromium --with-deps"). Ignored when needs_emulator is true - the emulator-runner step handles its own setup.
+        required: false
+        type: string
+        default: ""
+      test_command:
+        required: true
+        type: string
+      needs_emulator:
+        description: True for Android/Espresso repos - runs test_command inside a live emulator session instead of as a bare step.
+        required: false
+        type: boolean
+        default: false
+      emulator_api_level:
+        required: false
+        type: number
+        default: 30
+      record_video:
+        description: Capture video of the test run. Playwright repos get --video=on passed through PLAYWRIGHT_VIDEO; emulator repos get adb shell screenrecord wrapped around test_command.
+        required: false
+        type: boolean
+        default: false
+      coverage_manifest_path:
+        description: Path to this repo's critical-flow manifest (e.g. e2e-coverage.yaml) - a list of flow names that must each have a matching test. Empty string skips the check (repo hasn't adopted the manifest yet).
+        required: false
+        type: string
+        default: ""
+      node_version:
+        required: false
+        type: string
+        default: "22"
+
+jobs:
+  # ── Non-emulator path (Playwright, or any future non-Android e2e stack) ──
+  visual-tests:
+    if: inputs.needs_emulator == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+
+      - name: Install
+        if: inputs.install_command != ''
+        run: ${{ inputs.install_command }}
+        working-directory: ${{ inputs.working_directory }}
+
+      - name: Run tests
+        id: run
+        env:
+          PLAYWRIGHT_VIDEO: ${{ inputs.record_video && 'on' || 'off' }}
+        run: ${{ inputs.test_command }}
+        working-directory: ${{ inputs.working_directory }}
+
+      # Checked out separately, not part of the caller's own tree - this reusable
+      # workflow's scripts/ live in agent-ops, same as skills do for
+      # dev-pipeline-reusable.yml, just same-org here so no GH App token needed.
+      - name: Checkout agent-ops scripts
+        if: inputs.coverage_manifest_path != ''
+        uses: actions/checkout@v4
+        with:
+          repository: 11thandOrange/agent-ops
+          path: .agent-ops-scripts
+
+      - name: Coverage manifest check
+        if: inputs.coverage_manifest_path != ''
+        run: |
+          cd .agent-ops-scripts/scripts && npm ci --omit=dev
+          node check-flow-coverage.mjs "$GITHUB_WORKSPACE/${{ inputs.working_directory }}/${{ inputs.coverage_manifest_path }}"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-test-results
+          path: ${{ inputs.working_directory }}/test-results/**
+          if-no-files-found: ignore
+
+      - name: Upload video
+        if: always() && inputs.record_video
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-test-video
+          path: ${{ inputs.working_directory }}/test-results/**/*.webm
+          if-no-files-found: ignore
+
+      - name: Post PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const passed = '${{ steps.run.outcome }}' === 'success';
+            const icon = passed ? '✅' : '❌';
+            const status = passed ? 'PASSED' : 'FAILED';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## ${icon} Visual/E2E Tests — ${status}\n\nSee the [CI run](${runUrl}) for details.`,
+            });
+
+  # ── Emulator path (Android/Espresso) ──
+  visual-tests-emulator:
+    if: inputs.needs_emulator == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Enable KVM for hardware-accelerated emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: AVD cache
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ inputs.emulator_api_level }}
+
+      - name: Create AVD snapshot for caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ inputs.emulator_api_level }}
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: Run tests
+        id: run
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ inputs.emulator_api_level }}
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          working-directory: ${{ inputs.working_directory }}
+          script: |
+            if [ "${{ inputs.record_video }}" = "true" ]; then
+              adb shell screenrecord --time-limit 1800 /sdcard/visual-test-run.mp4 &
+              RECORDER_PID=$!
+            fi
+
+            ${{ inputs.test_command }}
+            TEST_EXIT=$?
+
+            if [ "${{ inputs.record_video }}" = "true" ]; then
+              kill -INT "$RECORDER_PID" 2>/dev/null || true
+              sleep 2
+              adb pull /sdcard/visual-test-run.mp4 ./visual-test-run.mp4 || true
+            fi
+
+            exit $TEST_EXIT
+
+      - name: Checkout agent-ops scripts
+        if: inputs.coverage_manifest_path != ''
+        uses: actions/checkout@v4
+        with:
+          repository: 11thandOrange/agent-ops
+          path: .agent-ops-scripts
+
+      - name: Coverage manifest check
+        if: inputs.coverage_manifest_path != ''
+        run: |
+          cd .agent-ops-scripts/scripts && npm ci --omit=dev
+          node check-flow-coverage.mjs "$GITHUB_WORKSPACE/${{ inputs.working_directory }}/${{ inputs.coverage_manifest_path }}"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-test-results
+          path: |
+            ${{ inputs.working_directory }}/build/outputs/androidTest-results/**
+            ${{ inputs.working_directory }}/build/reports/androidTests/**
+          if-no-files-found: ignore
+
+      - name: Upload video
+        if: always() && inputs.record_video
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-test-video
+          path: ${{ inputs.working_directory }}/visual-test-run.mp4
+          if-no-files-found: ignore
+
+      - name: Post PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const passed = '${{ steps.run.outcome }}' === 'success';
+            const icon = passed ? '✅' : '❌';
+            const status = passed ? 'PASSED' : 'FAILED';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## ${icon} Visual/E2E Tests — ${status}\n\nSee the [CI run](${runUrl}) for details.`,
+            });
