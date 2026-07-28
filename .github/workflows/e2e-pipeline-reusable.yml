@@ -157,7 +157,15 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ inputs.emulator_api_level }}
+          # avd-v2- (not avd-): the AVD created before this profile: line
+          # existed defaulted to a bare 320x640 skin - no --device/profile
+          # was ever passed to avdmanager, so it fell back to the smallest
+          # generic screen. Real phones aren't 320px wide; confirmed on a
+          # real CI run this made a normal-width header overflow off
+          # screen entirely. A version bump on the cache key, not just
+          # adding profile: below, since a previously-cached small-screen
+          # AVD would otherwise still be reused as-is.
+          key: avd-v2-${{ inputs.emulator_api_level }}
 
       - name: Create AVD snapshot for caching
         if: steps.avd-cache.outputs.cache-hit != 'true'
@@ -166,6 +174,7 @@ jobs:
           api-level: ${{ inputs.emulator_api_level }}
           target: google_apis
           arch: x86_64
+          profile: pixel_6
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: echo "Generated AVD snapshot for caching."
@@ -209,6 +218,7 @@ jobs:
           api-level: ${{ inputs.emulator_api_level }}
           target: google_apis
           arch: x86_64
+          profile: pixel_6
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
