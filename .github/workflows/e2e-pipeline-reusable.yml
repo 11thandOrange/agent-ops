@@ -170,6 +170,38 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: echo "Generated AVD snapshot for caching."
 
+      # reactivecircus/android-emulator-runner's `script:` input silently
+      # truncates a multi-line if/fi script that backgrounds a process with
+      # `&` - the pre-flight log shows the full script, but the shell that
+      # actually runs it only receives the first line ("if ...; then") and
+      # errors "unexpected end of file (expecting fi)". Confirmed on a real
+      # run (OrderMate, agent-ops#5 follow-up). Writing the logic to a file
+      # first and giving the action a single-line command instead sidesteps
+      # whatever is truncating it, since only plain `run:` steps (not this
+      # third-party action) ever see the multi-line/`&` content.
+      - name: Write test runner script
+        run: |
+          cat > "$RUNNER_TEMP/run-emulator-tests.sh" <<'SCRIPT_EOF'
+          #!/bin/sh
+          RECORDER_PID=""
+          if [ "$RECORD_VIDEO" = "true" ]; then
+            adb shell screenrecord --time-limit 1800 /sdcard/e2e-test-run.mp4 &
+            RECORDER_PID=$!
+          fi
+
+          eval "$TEST_COMMAND"
+          TEST_EXIT=$?
+
+          if [ -n "$RECORDER_PID" ]; then
+            kill -INT "$RECORDER_PID" 2>/dev/null || true
+            sleep 2
+            adb pull /sdcard/e2e-test-run.mp4 ./e2e-test-run.mp4 || true
+          fi
+
+          exit $TEST_EXIT
+          SCRIPT_EOF
+          chmod +x "$RUNNER_TEMP/run-emulator-tests.sh"
+
       - name: Run tests
         id: run
         uses: reactivecircus/android-emulator-runner@v2
@@ -181,22 +213,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           working-directory: ${{ inputs.working_directory }}
-          script: |
-            if [ "${{ inputs.record_video }}" = "true" ]; then
-              adb shell screenrecord --time-limit 1800 /sdcard/e2e-test-run.mp4 &
-              RECORDER_PID=$!
-            fi
-
-            ${{ inputs.test_command }}
-            TEST_EXIT=$?
-
-            if [ "${{ inputs.record_video }}" = "true" ]; then
-              kill -INT "$RECORDER_PID" 2>/dev/null || true
-              sleep 2
-              adb pull /sdcard/e2e-test-run.mp4 ./e2e-test-run.mp4 || true
-            fi
-
-            exit $TEST_EXIT
+          script: RECORD_VIDEO="${{ inputs.record_video }}" TEST_COMMAND="${{ inputs.test_command }}" sh "$RUNNER_TEMP/run-emulator-tests.sh"
 
       - name: Checkout agent-ops scripts
         if: inputs.coverage_manifest_path != ''
