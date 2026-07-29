@@ -1,105 +1,74 @@
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --bg: #0f0f10;
-  --bg-secondary: #161618;
-  --bg-tertiary: #1c1c1f;
-  --bg-hover: #212124;
-  --bg-active: #2a2a2e;
-  --border: #2e2e32;
-  --border-light: #3a3a3f;
-  --text-primary: #f4f4f5;
-  --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
-  --accent: #14b8a6;
-  --accent-hover: #2dd4bf;
-  --accent-bg: rgba(20, 184, 166, 0.1);
-  --accent-border: rgba(20, 184, 166, 0.3);
-  --green: #22c55e;
-  --green-bg: rgba(34, 197, 94, 0.1);
-  --yellow: #eab308;
-  --yellow-bg: rgba(234, 179, 8, 0.1);
-  --red: #ef4444;
-  --red-bg: rgba(239, 68, 68, 0.1);
-  --blue: #3b82f6;
-  --blue-bg: rgba(59, 130, 246, 0.1);
-  --sidebar-width: 260px;
-  --code-panel-width: 380px;
-  --header-height: 56px;
-  --tab-height: 44px;
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  /* Fallback defaults - overwritten at runtime by src/lib/theme.ts from
+     wiki.config.generated.ts before first paint (see main.tsx). */
+  --wiki-accent: #5169dd;
+  --wiki-accent-hover: #4257c4;
+  --wiki-accent-muted: rgba(81, 105, 221, 0.1);
 }
 
-html, body {
-  height: 100%;
-  background: var(--bg);
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+body {
+  @apply bg-background text-content font-sans antialiased;
 }
 
-#root {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+.transition-fast {
+  transition: all 0.15s ease;
 }
 
-/* Scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border-light);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+.rounded-button {
+  border-radius: 10px;
 }
 
-/* Code blocks */
-pre, code {
-  font-family: var(--font-mono);
-  font-size: 13px;
+.rounded-input {
+  border-radius: 8px;
 }
 
-/* Links */
-a {
-  color: var(--accent);
-  text-decoration: none;
-}
-a:hover {
-  text-decoration: underline;
+.rounded-card {
+  border-radius: 14px;
 }
 
-/* Selection */
-::selection {
-  background: var(--accent);
-  color: white;
+.prose-body {
+  @apply text-content-secondary leading-relaxed;
 }
 
-@media (max-width: 900px) {
-  .mobile-menu-btn { display: block !important; }
-  .mobile-overlay { display: block !important; }
-  .mobile-close { display: block !important; }
-  aside[style*="--sidebar-width"] {
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    z-index: 50;
-    transform: translateX(-100%);
-    transition: transform 0.2s ease;
-  }
+.text-heading-lg {
+  @apply text-3xl;
+}
+
+.text-heading-sm {
+  @apply text-lg;
+}
+
+.markdown-body h1 {
+  @apply text-heading-lg font-bold text-white mt-8 mb-4;
+}
+.markdown-body h2 {
+  @apply text-xl font-semibold text-white mt-6 mb-3;
+}
+.markdown-body h3 {
+  @apply text-heading-sm font-semibold text-white mt-5 mb-2;
+}
+.markdown-body p {
+  @apply prose-body mb-4;
+}
+.markdown-body ul {
+  @apply list-disc list-inside prose-body mb-4 space-y-1;
+}
+.markdown-body ol {
+  @apply list-decimal list-inside prose-body mb-4 space-y-1;
+}
+.markdown-body a {
+  @apply text-brand underline;
+}
+.markdown-body code {
+  @apply rounded-input bg-surface px-1.5 py-0.5 font-mono text-sm text-content;
+}
+.markdown-body pre {
+  @apply rounded-input border border-surface-border bg-white/[0.02] p-4 overflow-x-auto mb-4;
+}
+.markdown-body pre code {
+  @apply bg-transparent p-0;
 }

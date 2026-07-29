@@ -1,0 +1,56 @@
+# wiki.config.yaml - per-repo configuration for the shared wiki generator
+# (agent-ops issue #286). agent-ops is the control repo itself, so it only
+# documents what it actually contains: its GitHub Actions workflows and its
+# hand-written markdown docs. The app-repo extractors (API endpoints, app
+# list, per-repo pipeline automation, e2e test suites) don't apply here -
+# nothing runs a pipeline *against* agent-ops, and it ships no app API - so
+# they stay disabled.
+#
+# All theming/title/favicon values below are literal, deterministic strings
+# - nothing here is ever LLM-generated.
+
+site:
+  title: "agent-ops Docs"
+  description: "Documentation for agent-ops: the pipeline orchestrator, shared skills, and CI/CD workflows."
+  theme:
+    accent: "#14b8a6"
+    accentHover: "#0f9488"
+    accentMuted: "rgba(20, 184, 166, 0.1)"
+  favicon: "/favicon.svg"
+  githubUrl: "https://github.com/HeyItsChloe/agent-ops"
+
+extractors:
+  # Kind 3: GH Actions workflows -> workflows.ts (CI/CD section)
+  workflows:
+    enabled: true
+    glob:
+      - ".github/workflows/*.yml"
+    exclude: []
+
+  # Kind 6: existing markdown docs, ingested verbatim (not LLM-rewritten) -> pages.ts (Docs section)
+  markdown:
+    enabled: true
+    sources:
+      - glob: "roadmap/*.md"
+        navSection: "Roadmap"
+      - glob: "CONTRIBUTING.md"
+        navSection: "Contributing"
+      - glob: "orchestrator/README.md"
+        navSection: "Orchestrator"
+
+  # Not applicable to the control repo - explicitly disabled.
+  endpointsExpress:
+    enabled: false
+  endpointsKotlin:
+    enabled: false
+  automation:
+    enabled: false
+  tests:
+    enabled: false
+  appList:
+    enabled: false
+
+# Where generated output is written, relative to the wiki-site checkout root.
+output:
+  dataDir: "src/data"
+  contentDir: "src/content"
