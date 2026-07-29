@@ -77,6 +77,12 @@ extractors:
     # layout - see ordermate's .agents/agents/api-spec-generator.md.
     interfaceGlob:
       - "app/src/main/java/com/orderMate/networkManager/*.kt"
+    # Source globs the DTO resolver scans for `data class` definitions, used to
+    # turn each endpoint's @Body param and return type into a real example JSON
+    # body instead of an empty-object placeholder. Defaults to the whole app
+    # tree (app/src/main/**/*.kt); narrow it if resolution is slow or ambiguous.
+    modelGlobs:
+      - "app/src/main/**/*.kt"
 
   # Kind 3: GH Actions workflows -> workflows.ts
   workflows:
