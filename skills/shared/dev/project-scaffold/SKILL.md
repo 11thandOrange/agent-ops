@@ -6,7 +6,7 @@ applies_to: all
 
 # Project scaffold
 
-Onboarding a new pipeline is a pipeline capability, not a static template a human copies by hand (design review — see `docs/multi-pipeline-agent-strategy.md` §6.1, and its split note for the current two-repo architecture). This skill defines what `scaffold_pipeline` must produce; it's invoked via the `scaffold_pipeline` MCP tool (shipped by the `@heyitschloe/pipeline-orchestrator` package, `src/handlers/scaffold.ts`), not run manually.
+Onboarding a new pipeline is a pipeline capability, not a static template a human copies by hand (design review — see `roadmap/multi-pipeline-agent-strategy.md` §6.1, and its split note for the current two-repo architecture). This skill defines what `scaffold_pipeline` must produce; it's invoked via the `scaffold_pipeline` MCP tool (shipped by the `@heyitschloe/pipeline-orchestrator` package, `src/handlers/scaffold.ts`), not run manually.
 
 **This replaces the old `scaffold_project(name, type, repo?)` tool.** The engine is now generic — there's no `dev`/`personal` type distinction baked into the tool itself, and there's no automatic default-filling from a short-form call. The caller supplies the full registry entry explicitly.
 

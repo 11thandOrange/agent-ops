@@ -1,0 +1,32 @@
+# Thin per-app-repo caller for agent-ops's wiki-generate-reusable.yml
+# (issue #286 - shared wiki generator). Same pattern as
+# templates/dev-pipeline-caller.yml: this file is NOT pushed into app repos
+# automatically from this session - copy it into
+# `<app-repo>/.github/workflows/wiki-generate.yml` yourself, alongside a
+# `<app-repo>/wiki.config.yaml` (start from
+# templates/wiki-site/wiki.config.example.yaml).
+#
+# Values below are placeholders for a first pilot repo - update
+# `secrets: inherit` expectations (GH_APP_ID / GH_APP_PRIVATE_KEY must exist
+# as repo or org secrets in the target repo, same as dev-pipeline-caller.yml
+# already requires there) and site_dir/config_path if this repo's docs site
+# doesn't live at the defaults (docs/, wiki.config.yaml at repo root).
+
+name: wiki-generate
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  generate:
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    uses: HeyItsChloe/agent-ops/.github/workflows/wiki-generate-reusable.yml@main
+    with:
+      site_dir: docs
+      config_path: wiki.config.yaml
+    secrets: inherit

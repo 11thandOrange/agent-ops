@@ -1,0 +1,371 @@
+name: e2e-pipeline-reusable
+
+# Shared e2e test pipeline (BusyBuddy_v2#285 Phase 6). Lives here, once,
+# centrally - each app repo keeps only a thin caller (see
+# templates/e2e-pipeline-caller.yml) that passes its own install/test commands.
+#
+# Shared: checkout, artifact upload, PR comment, the record_video toggle, and the
+# coverage requirement (tests exist and pass + every critical flow has a test,
+# via a per-repo manifest). Repo-specific: which test framework actually runs
+# (Playwright vs. Gradle/Espresso) - never hardcoded here, always an opaque
+# input this workflow passes through without interpreting.
+#
+# needs_emulator exists because Android's instrumented tests aren't a "run a
+# command" problem the way Playwright is - the emulator has to be booted and
+# stay live for the whole test_command run, not just present beforehand. That's
+# the one real branch point; everything else is identical between stacks.
+
+on:
+  workflow_call:
+    inputs:
+      working_directory:
+        required: true
+        type: string
+      install_command:
+        description: Repo-specific setup (e.g. "npx playwright install chromium --with-deps"). Ignored when needs_emulator is true - the emulator-runner step handles its own setup.
+        required: false
+        type: string
+        default: ""
+      test_command:
+        required: true
+        type: string
+      needs_emulator:
+        description: True for Android/Espresso repos - runs test_command inside a live emulator session instead of as a bare step.
+        required: false
+        type: boolean
+        default: false
+      emulator_api_level:
+        required: false
+        type: number
+        default: 30
+      record_video:
+        description: Capture video of the test run. Playwright repos get --video=on passed through PLAYWRIGHT_VIDEO; emulator repos get adb shell screenrecord wrapped around test_command.
+        required: false
+        type: boolean
+        default: false
+      coverage_manifest_path:
+        description: Path to this repo's critical-flow manifest (e.g. e2e-coverage.yaml) - a list of flow names that must each have a matching test. Empty string skips the check (repo hasn't adopted the manifest yet).
+        required: false
+        type: string
+        default: ""
+      node_version:
+        required: false
+        type: string
+        default: "22"
+
+jobs:
+  # ── Non-emulator path (Playwright, or any future non-Android e2e stack) ──
+  e2e-tests:
+    if: inputs.needs_emulator == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+
+      - name: Install
+        if: inputs.install_command != ''
+        run: ${{ inputs.install_command }}
+        working-directory: ${{ inputs.working_directory }}
+
+      - name: Run tests
+        id: run
+        env:
+          PLAYWRIGHT_VIDEO: ${{ inputs.record_video && 'on' || 'off' }}
+        run: ${{ inputs.test_command }}
+        working-directory: ${{ inputs.working_directory }}
+
+      # Checked out separately, not part of the caller's own tree - this reusable
+      # workflow's scripts/ live in agent-ops, same as skills do for
+      # dev-pipeline-reusable.yml, just same-org here so no GH App token needed.
+      - name: Checkout agent-ops scripts
+        if: inputs.coverage_manifest_path != ''
+        uses: actions/checkout@v4
+        with:
+          repository: 11thandOrange/agent-ops
+          path: .agent-ops-scripts
+
+      - name: Coverage manifest check
+        if: inputs.coverage_manifest_path != ''
+        run: |
+          cd .agent-ops-scripts/scripts && npm ci --omit=dev
+          node check-flow-coverage.mjs "$GITHUB_WORKSPACE/${{ inputs.working_directory }}/${{ inputs.coverage_manifest_path }}"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: ${{ inputs.working_directory }}/test-results/**
+          if-no-files-found: ignore
+
+      - name: Upload video
+        if: always() && inputs.record_video
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-video
+          path: ${{ inputs.working_directory }}/test-results/**/*.webm
+          if-no-files-found: ignore
+
+      - name: Post PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const passed = '${{ steps.run.outcome }}' === 'success';
+            const icon = passed ? '✅' : '❌';
+            const status = passed ? 'PASSED' : 'FAILED';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## ${icon} E2E Tests — ${status}\n\nSee the [CI run](${runUrl}) for details.`,
+            });
+
+  # ── Emulator path (Android/Espresso) ──
+  e2e-tests-emulator:
+    if: inputs.needs_emulator == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Enable KVM for hardware-accelerated emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: AVD cache
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          # avd-v2- (not avd-): the AVD created before this profile: line
+          # existed defaulted to a bare 320x640 skin - no --device/profile
+          # was ever passed to avdmanager, so it fell back to the smallest
+          # generic screen. Real phones aren't 320px wide; confirmed on a
+          # real CI run this made a normal-width header overflow off
+          # screen entirely. A version bump on the cache key, not just
+          # adding profile: below, since a previously-cached small-screen
+          # AVD would otherwise still be reused as-is.
+          key: avd-v2-${{ inputs.emulator_api_level }}
+
+      - name: Create AVD snapshot for caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ inputs.emulator_api_level }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: echo "Generated AVD snapshot for caching."
+
+      # reactivecircus/android-emulator-runner's `script:` input silently
+      # truncates a multi-line if/fi script that backgrounds a process with
+      # `&` - the pre-flight log shows the full script, but the shell that
+      # actually runs it only receives the first line ("if ...; then") and
+      # errors "unexpected end of file (expecting fi)". Confirmed on a real
+      # run (OrderMate, agent-ops#5 follow-up). Writing the logic to a file
+      # first and giving the action a single-line command instead sidesteps
+      # whatever is truncating it, since only plain `run:` steps (not this
+      # third-party action) ever see the multi-line/`&` content.
+      - name: Write test runner script
+        run: |
+          cat > "$RUNNER_TEMP/run-emulator-tests.sh" <<'SCRIPT_EOF'
+          #!/bin/sh
+          RECORDER_PID=""
+          if [ "$RECORD_VIDEO" = "true" ]; then
+            adb shell screenrecord --time-limit 1800 /sdcard/e2e-test-run.mp4 &
+            RECORDER_PID=$!
+          fi
+
+          eval "$TEST_COMMAND"
+          TEST_EXIT=$?
+
+          if [ -n "$RECORDER_PID" ]; then
+            kill -INT "$RECORDER_PID" 2>/dev/null || true
+            sleep 2
+            adb pull /sdcard/e2e-test-run.mp4 ./e2e-test-run.mp4 || true
+          fi
+
+          exit $TEST_EXIT
+          SCRIPT_EOF
+          chmod +x "$RUNNER_TEMP/run-emulator-tests.sh"
+
+      # reactivecircus/android-emulator-runner's own boot sequence intermittently failed before
+      # our script ever ran. Confirmed against the action's actual source
+      # (emulator-manager.js, waitForDevice()/launchEmulator()): it polls
+      # `adb shell getprop sys.boot_completed` until it reads "1", then on the very next line -
+      # zero delay, no re-check - fires `adb shell input keyevent 82` to dismiss any lock
+      # screen. sys.boot_completed=1 only means SystemServer finished its early-boot broadcast;
+      # it doesn't guarantee every individual system service (InputManagerService here) has
+      # finished registering with ServiceManager yet. Land in that gap and the keyevent throws
+      # `IllegalStateException: ... No service published for: input`, erroring the whole step
+      # out. That's a real race inside the action's compiled JS, with no input to disable the
+      # nudge or add a grace period - retrying around it (tried first) is not a fix, just
+      # gambling on the same race resolving next time, and it isn't reliable (confirmed: hit
+      # twice in a row in practice). The actual fix is to not depend on the action's internal
+      # handshake at all: launch the already-cached AVD (created by "Create AVD snapshot for
+      # caching" above) ourselves, and explicitly wait for the input service to report ready
+      # (`adb shell service check input`) before ever touching it - closing the race instead of
+      # racing it repeatedly.
+      # ~/.android/avd/* (cached above) only holds the AVD's own config/snapshot data - the SDK
+      # packages an AVD launches against (the emulator binary itself, the system image files
+      # under $ANDROID_HOME/system-images/, platform-tools for adb) live outside that path and
+      # aren't part of the cache, so they're missing on every fresh runner regardless of AVD
+      # cache hit/miss. The old action-based step reinstalled these on every single invocation
+      # for exactly this reason - confirmed the hard way (`$ANDROID_HOME/emulator/emulator: No
+      # such file or directory`) when this step's first version assumed they'd already be there.
+      #
+      # sdkmanager itself isn't on PATH either (confirmed against actions/runner-images' own
+      # install-android-sdk.sh: it sets ANDROID_HOME/ANDROID_SDK_ROOT via /etc/environment but
+      # never adds cmdline-tools/latest/bin, where sdkmanager actually lives, to PATH anywhere).
+      # $GITHUB_PATH writes only take effect in later steps, not the current one, so this step
+      # needs its own `export PATH=...` to use sdkmanager/adb within itself, in addition to the
+      # $GITHUB_PATH lines so later steps (Launch emulator, Run tests, Terminate emulator) get
+      # adb/emulator without repeating this.
+      - name: Install Android SDK components
+        run: |
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/emulator" >> "$GITHUB_PATH"
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager --install platform-tools "platforms;android-${{ inputs.emulator_api_level }}" > /dev/null
+          sdkmanager --install emulator --channel=0 > /dev/null
+          sdkmanager --install "system-images;android-${{ inputs.emulator_api_level }};google_apis;x86_64" --channel=0 > /dev/null
+
+      - name: Launch emulator and wait for full boot
+        run: |
+          "$ANDROID_HOME/emulator/emulator" -port 5554 -avd test -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none &
+
+          boot_timeout=600
+          elapsed=0
+          booted=""
+          while [ -z "$booted" ]; do
+            result="$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r\n')"
+            if [ "$result" = "1" ]; then
+              booted="1"
+              echo "Emulator booted."
+              break
+            fi
+            if [ "$elapsed" -ge "$boot_timeout" ]; then
+              echo "Timeout waiting for emulator to boot." >&2
+              exit 1
+            fi
+            sleep 2
+            elapsed=$((elapsed + 2))
+          done
+
+          input_elapsed=0
+          input_ready=""
+          while [ -z "$input_ready" ]; do
+            if adb -s emulator-5554 shell service check input 2>/dev/null | grep -q "found"; then
+              input_ready="1"
+              echo "input service ready."
+              break
+            fi
+            if [ "$input_elapsed" -ge 60 ]; then
+              echo "input service did not report ready within 60s, proceeding anyway." >&2
+              break
+            fi
+            sleep 1
+            input_elapsed=$((input_elapsed + 1))
+          done
+
+          # `service check input` reporting "found" only means ServiceManager has a binder
+          # entry registered under that name - confirmed on a real run that the *actual*
+          # InputManager.getInstance() call backing `adb shell input ...` can still throw
+          # "No service published for: input" for a brief moment after that (~170ms observed),
+          # while the service finishes its own internal binding. A few short retries closes
+          # that final gap. This keyevent only dismisses a cosmetic lock screen our tests never
+          # depend on either way, so a failure here is non-fatal (|| true) rather than blocking
+          # the whole run over something that was never load-bearing.
+          keyevent_ok=""
+          for _ in 1 2 3 4 5; do
+            if adb -s emulator-5554 shell input keyevent 82 2>/dev/null; then
+              keyevent_ok="1"
+              break
+            fi
+            sleep 1
+          done
+          [ -n "$keyevent_ok" ] || echo "input keyevent 82 did not succeed after retries, proceeding anyway." >&2
+
+          adb -s emulator-5554 shell settings put global window_animation_scale 0.0
+          adb -s emulator-5554 shell settings put global transition_animation_scale 0.0
+          adb -s emulator-5554 shell settings put global animator_duration_scale 0.0
+
+      - name: Run tests
+        id: run
+        working-directory: ${{ inputs.working_directory }}
+        run: RECORD_VIDEO="${{ inputs.record_video }}" TEST_COMMAND="${{ inputs.test_command }}" sh "$RUNNER_TEMP/run-emulator-tests.sh"
+
+      - name: Terminate emulator
+        if: always()
+        run: adb -s emulator-5554 emu kill || true
+
+      - name: Checkout agent-ops scripts
+        if: inputs.coverage_manifest_path != ''
+        uses: actions/checkout@v4
+        with:
+          repository: 11thandOrange/agent-ops
+          path: .agent-ops-scripts
+
+      - name: Coverage manifest check
+        if: inputs.coverage_manifest_path != ''
+        run: |
+          cd .agent-ops-scripts/scripts && npm ci --omit=dev
+          node check-flow-coverage.mjs "$GITHUB_WORKSPACE/${{ inputs.working_directory }}/${{ inputs.coverage_manifest_path }}"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: |
+            ${{ inputs.working_directory }}/build/outputs/androidTest-results/**
+            ${{ inputs.working_directory }}/build/reports/androidTests/**
+          if-no-files-found: ignore
+
+      - name: Upload video
+        if: always() && inputs.record_video
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-video
+          path: ${{ inputs.working_directory }}/e2e-test-run.mp4
+          if-no-files-found: ignore
+
+      - name: Post PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const passed = '${{ steps.run.outcome }}' === 'success';
+            const icon = passed ? '✅' : '❌';
+            const status = passed ? 'PASSED' : 'FAILED';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## ${icon} E2E Tests — ${status}\n\nSee the [CI run](${runUrl}) for details.`,
+            });

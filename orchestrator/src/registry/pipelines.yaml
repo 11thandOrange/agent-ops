@@ -33,6 +33,42 @@
     desired_coverage: 85
     reviewer: heyitschloe
 
+- name: ordermate-dev
+  handler: dev-ticket-pipeline
+  skill_path: skills/shared/dev/android-conventions
+  execution:
+    kind: github-actions
+    workflow: dev-pipeline-reusable.yml
+    owner: 11thandOrange
+    repo: OrderMate
+  triggers:
+    labels:
+      approach-ready: plan
+      approved: implement
+    mentions:
+      "@dev-agent plan": plan
+      "@dev-agent implement": implement
+  params:
+    model_profile: implementation
+    # Real command, confirmed against OrderMate's own agent docs
+    # (.agents/agents/tester.md, build-release.md, ordermate-implementer.md)
+    # and its actual app/build.gradle.kts dependencies: `./gradlew test`
+    # runs the JVM unit test suite (JUnit 4.13.2 + androidx.test.ext/Espresso
+    # for androidTest, which this does not run).
+    test_command: "./gradlew test"
+    # ASSUMPTION (no coverage tooling actually wired up in OrderMate today):
+    # app/build.gradle.kts has no jacoco plugin applied, despite tester.md
+    # referencing a `./gradlew testDebugUnitTest jacocoTestReport` task —
+    # that task does not currently exist/work in this project. jacoco is
+    # picked as the conventional choice for a JVM/Android project, but the
+    # jacoco Gradle plugin and report wiring must be added to OrderMate's
+    # build before this gate can actually run. desired_coverage is set low
+    # (40) as a starting target given there is no existing coverage baseline.
+    coverage_type: jacoco
+    desired_coverage: 40
+    project_language: [kotlin]
+    reviewer: heyitschloe
+
 - name: resume-job-applier
   handler: job-search-pipeline
   skill_path: skills/personal/resume-job-applier

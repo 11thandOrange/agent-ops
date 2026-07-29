@@ -1,0 +1,134 @@
+/**
+ * Shared content-model types for the wiki-site template.
+ *
+ * These mirror BusyBuddy_v2's original hand-maintained docs/frontend/src/types
+ * (endpoints/apps/workflows), generalized and extended with two new entity
+ * kinds (AutomationDoc, TestSuiteDoc) called for by issue #286. Every
+ * `scripts/wiki-extractors/*.mjs` module writes arrays typed against one of
+ * these interfaces into `src/data/*.generated.json`, which the matching
+ * `src/data/*.ts` wrapper re-exports `as` this type. Never hand-edit the
+ * `*.generated.json` files - they are the extractors' idempotent merge
+ * target (see scripts/wiki-extractors/merge.mjs).
+ */
+
+export interface NavChild {
+  title: string;
+  href: string;
+}
+
+export interface NavSection {
+  title: string;
+  href: string;
+  children: NavChild[];
+}
+
+export interface ParamDoc {
+  name: string;
+  type: string;
+  required: boolean;
+  description: string;
+  in: 'query' | 'body' | 'path' | 'header';
+}
+
+export type AuthKind = 'session' | 'app-proxy' | 'admin-api-key' | 'partner-token' | 'bearer' | 'api-key' | 'none';
+
+export interface EndpointDoc {
+  slug: string;
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  path: string;
+  title: string;
+  description: string;
+  auth: AuthKind;
+  authNote: string;
+  params: ParamDoc[];
+  requestExample?: string;
+  responseExample: string;
+  /**
+   * Historically meant "callable without auth from the browser" (the old
+   * CORS-limited sandbox). With the wiki-backend proxy in place every
+   * endpoint is sandbox-testable given user-supplied auth, so this now just
+   * means "the sandbox will attempt a real call instead of only showing the
+   * mocked responseExample" - see Sandbox.tsx.
+   */
+  liveTestable: boolean;
+  /** Source file this endpoint was extracted from, for traceability. */
+  sourceFile?: string;
+}
+
+export interface EndpointGroup {
+  slug: string;
+  title: string;
+  description: string;
+  endpoints: EndpointDoc[];
+}
+
+export interface AppDoc {
+  slug: string;
+  name: string;
+  color: string;
+  icon?: string;
+  tagline: string;
+  plans: string[];
+  overview: string;
+  keyFeatures: string[];
+  configuration: string[];
+  storefrontBehavior: string;
+}
+
+export interface WorkflowStep {
+  name: string;
+  detail: string;
+}
+
+export interface WorkflowJob {
+  name: string;
+  runsOn: string;
+  steps: WorkflowStep[];
+}
+
+export interface WorkflowDoc {
+  slug: string;
+  title: string;
+  file: string;
+  trigger: string;
+  description: string;
+  jobs: WorkflowJob[];
+}
+
+/** One entry per pipeline this repo participates in, sourced from agent-ops's pipelines.yaml. */
+export interface AutomationDoc {
+  slug: string;
+  name: string;
+  handler: string;
+  executionKind: string;
+  workflow?: string;
+  triggers: string[];
+  params: Record<string, unknown>;
+  description: string;
+}
+
+/** Suite-level (not individual-test-level) coverage summary. */
+export interface TestSuiteDoc {
+  slug: string;
+  name: string;
+  framework: 'playwright' | 'gradle-instrumented' | 'vitest' | 'jest' | 'other';
+  path: string;
+  fileCount: number;
+  description: string;
+}
+
+/** A verbatim-ingested markdown doc, registered into the nav. */
+export interface MarkdownPageDoc {
+  slug: string;
+  title: string;
+  sourcePath: string;
+  contentFile: string;
+  navSection: string;
+}
+
+export interface ChangelogEntry {
+  date: string;
+  added: string[];
+  changed: string[];
+  fixed: string[];
+}
