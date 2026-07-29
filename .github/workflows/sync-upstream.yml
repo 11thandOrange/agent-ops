@@ -64,27 +64,27 @@ jobs:
         if: steps.merge.outputs.conflict == 'false'
         run: git push origin HEAD:main
 
-      - name: Abort merge and prep conflict branch
+      - name: On conflict, take upstream's side and push directly to main
         if: steps.merge.outputs.conflict == 'true'
         run: |
-          # Do NOT attempt auto-resolution. Re-run the merge so the conflict
-          # markers land in a branch a human can look at, instead of trying
-          # to guess a resolution here.
-          git merge --abort || true
-          BRANCH="sync/upstream-${{ github.run_id }}"
-          git checkout -b "$BRANCH"
-          git merge --no-edit upstream/main || true
-          git push origin "$BRANCH"
-          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
-        id: conflict-branch
-
-      - name: Open PR for human resolution
-        if: steps.merge.outputs.conflict == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr create \
-            --title "sync-upstream: conflict merging HeyItsChloe/agent-ops main" \
-            --body "Automatic merge of upstream \`HeyItsChloe/agent-ops\` \`main\` hit conflicts and was not auto-resolved (see CONTRIBUTING.md). Review the conflict markers on this branch, paying special attention to any file marked \`FORK-ONLY: do not upstream\` — those should generally keep this fork's version. Resolve and merge by hand." \
-            --base main \
-            --head "${{ steps.conflict-branch.outputs.branch }}"
+          # Previous behavior (push a conflict branch + open a PR for human
+          # review) had two real bugs: the App token lacked `pull-requests`
+          # permission to open that PR, AND the conflict branch itself was
+          # pushed with nothing committed (a failed `git merge` leaves the
+          # conflict unstaged, so `git push` after it is a no-op) - so the
+          # "branch for review" carried no diff at all either way.
+          #
+          # Given that, and given fork-only content is confined to files
+          # marked `FORK-ONLY: do not upstream` (CONTRIBUTING.md), resolve
+          # every conflicting path in upstream's favor except those, commit,
+          # and push straight to main.
+          git diff --name-only --diff-filter=U | while read -r f; do
+            if git show "upstream/main:$f" 2>/dev/null | head -1 | grep -q "FORK-ONLY: do not upstream"; then
+              git checkout --ours -- "$f"
+            else
+              git checkout --theirs -- "$f"
+            fi
+          done
+          git add -A
+          git commit --no-edit
+          git push origin HEAD:main
