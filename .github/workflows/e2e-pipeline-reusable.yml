@@ -235,8 +235,18 @@ jobs:
       # cache hit/miss. The old action-based step reinstalled these on every single invocation
       # for exactly this reason - confirmed the hard way (`$ANDROID_HOME/emulator/emulator: No
       # such file or directory`) when this step's first version assumed they'd already be there.
+      #
+      # sdkmanager itself isn't on PATH either (confirmed against actions/runner-images' own
+      # install-android-sdk.sh: it sets ANDROID_HOME/ANDROID_SDK_ROOT via /etc/environment but
+      # never adds cmdline-tools/latest/bin, where sdkmanager actually lives, to PATH anywhere).
+      # $GITHUB_PATH writes only take effect in later steps, not the current one, so this step
+      # needs its own `export PATH=...` to use sdkmanager/adb within itself, in addition to the
+      # $GITHUB_PATH lines so later steps (Launch emulator, Run tests, Terminate emulator) get
+      # adb/emulator without repeating this.
       - name: Install Android SDK components
         run: |
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
           echo "$ANDROID_HOME/emulator" >> "$GITHUB_PATH"
           yes | sdkmanager --licenses > /dev/null
