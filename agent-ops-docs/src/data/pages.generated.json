@@ -1,0 +1,34 @@
+[
+  {
+    "slug": "roadmap__implementation-roadmap",
+    "title": "Implementation Roadmap",
+    "sourcePath": "roadmap/implementation-roadmap.md",
+    "contentFile": "roadmap__implementation-roadmap.md",
+    "navSection": "Roadmap",
+    "_sourceHash": "7db9a2b011d6bad88586f1d8908e0e35478aceab"
+  },
+  {
+    "slug": "roadmap__multi-pipeline-agent-strategy",
+    "title": "Multi-Pipeline Agent Automation Strategy",
+    "sourcePath": "roadmap/multi-pipeline-agent-strategy.md",
+    "contentFile": "roadmap__multi-pipeline-agent-strategy.md",
+    "navSection": "Roadmap",
+    "_sourceHash": "2722fbccf79e74f9a0af442676e878d5613e1bde"
+  },
+  {
+    "slug": "contributing",
+    "title": "Contributing (this fork)",
+    "sourcePath": "CONTRIBUTING.md",
+    "contentFile": "contributing.md",
+    "navSection": "Contributing",
+    "_sourceHash": "83495700ba33a056c0d333153283a970c39384c3"
+  },
+  {
+    "slug": "orchestrator__readme",
+    "title": "orchestrator",
+    "sourcePath": "orchestrator/README.md",
+    "contentFile": "orchestrator__readme.md",
+    "navSection": "Orchestrator",
+    "_sourceHash": "b2e8ca323c5da2d8bab9ffc4e7fd1b8fda48a5a0"
+  }
+]

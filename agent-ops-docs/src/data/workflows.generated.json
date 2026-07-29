@@ -1,0 +1,376 @@
+[
+  {
+    "slug": "deploy-docs",
+    "title": "deploy-docs",
+    "file": ".github/workflows/deploy-docs.yml",
+    "trigger": "push (branches: [main], paths: [agent-ops-docs/**])  ·  workflow_dispatch",
+    "description": "Extracted from .github/workflows/deploy-docs.yml.",
+    "jobs": [
+      {
+        "name": "build",
+        "runsOn": "ubuntu-latest",
+        "steps": [
+          {
+            "name": "actions/checkout@v4",
+            "detail": "uses: actions/checkout@v4"
+          },
+          {
+            "name": "actions/setup-node@v4",
+            "detail": "uses: actions/setup-node@v4"
+          },
+          {
+            "name": "npm ci",
+            "detail": "run: npm ci"
+          },
+          {
+            "name": "npm run build",
+            "detail": "run: npm run build"
+          },
+          {
+            "name": "actions/configure-pages@v5",
+            "detail": "uses: actions/configure-pages@v5"
+          },
+          {
+            "name": "actions/upload-pages-artifact@v3",
+            "detail": "uses: actions/upload-pages-artifact@v3"
+          }
+        ]
+      },
+      {
+        "name": "deploy",
+        "runsOn": "ubuntu-latest",
+        "steps": [
+          {
+            "name": "actions/deploy-pages@v4",
+            "detail": "uses: actions/deploy-pages@v4"
+          }
+        ]
+      }
+    ],
+    "_sourceHash": "9ec8b14e9fd154867fae20b3cacc367d7e8ba8be"
+  },
+  {
+    "slug": "deploy-litellm",
+    "title": "deploy-litellm",
+    "file": ".github/workflows/deploy-litellm.yml",
+    "trigger": "workflow_dispatch  ·  push (branches: [main], paths: [litellm/**])",
+    "description": "Extracted from .github/workflows/deploy-litellm.yml.",
+    "jobs": [
+      {
+        "name": "deploy",
+        "runsOn": "ubuntu-latest",
+        "steps": [
+          {
+            "name": "actions/checkout@v4",
+            "detail": "uses: actions/checkout@v4"
+          },
+          {
+            "name": "google-github-actions/auth@v2",
+            "detail": "uses: google-github-actions/auth@v2"
+          },
+          {
+            "name": "google-github-actions/setup-gcloud@v2",
+            "detail": "uses: google-github-actions/setup-gcloud@v2"
+          },
+          {
+            "name": "Build env vars file",
+            "detail": "run: python3 - <<'PYEOF'"
+          },
+          {
+            "name": "Deploy LiteLLM to Cloud Run",
+            "detail": "run: gcloud run deploy litellm-gateway \\"
+          }
+        ]
+      }
+    ],
+    "_sourceHash": "611e2e85086c307de367c310aa65568d15d9cfa7"
+  },
+  {
+    "slug": "deploy-orchestrator",
+    "title": "deploy-orchestrator",
+    "file": ".github/workflows/deploy-orchestrator.yml",
+    "trigger": "workflow_dispatch  ·  push (branches: [main], paths: [orchestrator/**])",
+    "description": "Extracted from .github/workflows/deploy-orchestrator.yml.",
+    "jobs": [
+      {
+        "name": "deploy",
+        "runsOn": "ubuntu-latest",
+        "steps": [
+          {
+            "name": "actions/checkout@v4",
+            "detail": "uses: actions/checkout@v4"
+          },
+          {
+            "name": "google-github-actions/auth@v2",
+            "detail": "uses: google-github-actions/auth@v2"
+          },
+          {
+            "name": "google-github-actions/setup-gcloud@v2",
+            "detail": "uses: google-github-actions/setup-gcloud@v2"
+          },
+          {
+            "name": "Build env vars file",
+            "detail": "run: python3 - <<'PYEOF'"
+          },
+          {
+            "name": "Deploy orchestrator to Cloud Run",
+            "detail": "run: gcloud run deploy orchestrator \\"
+          }
+        ]
+      }
+    ],
+    "_sourceHash": "4debaa7da225453bb94dae105597b5aaa6e282b3"
+  },
+  {
+    "slug": "e2e-pipeline-reusable",
+    "title": "e2e-pipeline-reusable",
+    "file": ".github/workflows/e2e-pipeline-reusable.yml",
+    "trigger": "workflow_call",
+    "description": "Extracted from .github/workflows/e2e-pipeline-reusable.yml.",
+    "jobs": [
+      {
+        "name": "e2e-tests",
+        "runsOn": "ubuntu-latest",
+        "steps": [
+          {
+            "name": "actions/checkout@v4",
+            "detail": "uses: actions/checkout@v4"
+          },
+          {
+            "name": "actions/setup-node@v4",
+            "detail": "uses: actions/setup-node@v4"
+          },
+          {
+            "name": "Install",
+            "detail": "run: ${{ inputs.install_command }}"
+          },
+          {
+            "name": "Run tests",
+            "detail": "run: ${{ inputs.test_command }}"
+          },
+          {
+            "name": "Checkout agent-ops scripts",
+            "detail": "uses: actions/checkout@v4"
+          },
+          {
+            "name": "Coverage manifest check",
+            "detail": "run: cd .agent-ops-scripts/scripts && npm ci --omit=dev"
+          },
+          {
+            "name": "Upload test results",
+            "detail": "uses: actions/upload-artifact@v4"
+          },
+          {
+            "name": "Upload video",
+            "detail": "uses: actions/upload-artifact@v4"
+          },
+          {
+            "name": "Post PR comment",
+            "detail": "uses: actions/github-script@v7"
+          }
+        ]
+      },
+      {
+        "name": "e2e-tests-emulator",
+        "runsOn": "ubuntu-latest",
+        "steps": [
+          {
+            "name": "actions/checkout@v4",
+            "detail": "uses: actions/checkout@v4"
+          },
+          {
+            "name": "actions/setup-java@v4",
+            "detail": "uses: actions/setup-java@v4"
+          },
+          {
+            "name": "Enable KVM for hardware-accelerated emulator",
+            "detail": "run: echo 'KERNEL==\"kvm\", GROUP=\"kvm\", MODE=\"0666\", OPTIONS+=\"static_node=kvm\"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules"
+          },
+          {
+            "name": "AVD cache",
+            "detail": "uses: actions/cache@v4"
+          },
+          {
+            "name": "Create AVD snapshot for caching",
+            "detail": "uses: reactivecircus/android-emulator-runner@v2"
+          },
+          {
+            "name": "Write test runner script",
+            "detail": "run: cat > \"$RUNNER_TEMP/run-emulator-tests.sh\" <<'SCRIPT_EOF'"
+          },
+          {
+            "name": "Install Android SDK components",
+            "detail": "run: export PATH=\"$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH\""
+          },
+          {
+            "name": "Launch emulator and wait for full boot",
+            "detail": "run: \"$ANDROID_HOME/emulator/emulator\" -port 5554 -avd test -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -came"
+          },
+          {
+            "name": "Run tests",
+            "detail": "run: RECORD_VIDEO=\"${{ inputs.record_video }}\" TEST_COMMAND=\"${{ inputs.test_command }}\" sh \"$RUNNER_TEMP/run-emulator-tests."
+          },
+          {
+            "name": "Terminate emulator",
+            "detail": "run: adb -s emulator-5554 emu kill || true"
+          },
+          {
+            "name": "Checkout agent-ops scripts",
+            "detail": "uses: actions/checkout@v4"
+          },
+          {
+            "name": "Coverage manifest check",
+            "detail": "run: cd .agent-ops-scripts/scripts && npm ci --omit=dev"
+          },
+          {
+            "name": "Upload test results",
+            "detail": "uses: actions/upload-artifact@v4"
+          },
+          {
+            "name": "Upload video",
+            "detail": "uses: actions/upload-artifact@v4"
+          },
+          {
+            "name": "Post PR comment",
+            "detail": "uses: actions/github-script@v7"
+          }
+        ]
+      }
+    ],
+    "_sourceHash": "e051a88fb0b320fc67273a93ebfb040a2d8fe384"
+  },
+  {
+    "slug": "sync-upstream",
+    "title": "sync-upstream",
+    "file": ".github/workflows/sync-upstream.yml",
+    "trigger": "schedule  ·  workflow_dispatch",
+    "description": "Extracted from .github/workflows/sync-upstream.yml.",
+    "jobs": [
+      {
+        "name": "sync",
+        "runsOn": "ubuntu-latest",
+        "steps": [
+          {
+            "name": "actions/checkout@v4",
+            "detail": "uses: actions/checkout@v4"
+          },
+          {
+            "name": "Mint upstream-scoped App token",
+            "detail": "uses: actions/create-github-app-token@v1"
+          },
+          {
+            "name": "Fetch upstream main",
+            "detail": "run: git remote add upstream \"https://x-access-token:${{ steps.upstream-token.outputs.token }}@github.com/HeyItsChloe/agent-o"
+          },
+          {
+            "name": "Configure git identity",
+            "detail": "run: git config user.name \"github-actions[bot]\""
+          },
+          {
+            "name": "Attempt merge",
+            "detail": "run: # git merge, never rebase — rebasing would rewrite this fork's own"
+          },
+          {
+            "name": "Push clean merge directly to main",
+            "detail": "run: git push origin HEAD:main"
+          },
+          {
+            "name": "Abort merge and prep conflict branch",
+            "detail": "run: # Do NOT attempt auto-resolution. Re-run the merge so the conflict"
+          },
+          {
+            "name": "Open PR for human resolution",
+            "detail": "run: gh pr create \\"
+          }
+        ]
+      }
+    ],
+    "_sourceHash": "7c3a313701a50e3e875aae5dadd4cedafb342a48"
+  },
+  {
+    "slug": "wiki-generate-reusable",
+    "title": "wiki-generate-reusable",
+    "file": ".github/workflows/wiki-generate-reusable.yml",
+    "trigger": "workflow_call",
+    "description": "Extracted from .github/workflows/wiki-generate-reusable.yml.",
+    "jobs": [
+      {
+        "name": "generate-and-commit",
+        "runsOn": "ubuntu-latest",
+        "steps": [
+          {
+            "name": "Checkout target repo",
+            "detail": "uses: actions/checkout@v4"
+          },
+          {
+            "name": "Parse control repo owner/name",
+            "detail": "run: IFS='/' read -r OWNER NAME <<< \"${{ inputs.control_repo }}\""
+          },
+          {
+            "name": "actions/create-github-app-token@v1",
+            "detail": "uses: actions/create-github-app-token@v1"
+          },
+          {
+            "name": "actions/checkout@v4",
+            "detail": "uses: actions/checkout@v4"
+          },
+          {
+            "name": "Exclude .wiki-control from git",
+            "detail": "run: echo \".wiki-control/\" >> .git/info/exclude"
+          },
+          {
+            "name": "actions/setup-node@v4",
+            "detail": "uses: actions/setup-node@v4"
+          },
+          {
+            "name": "Install generator script dependencies",
+            "detail": "run: npm install --no-audit --no-fund"
+          },
+          {
+            "name": "Run wiki generator",
+            "detail": "run: node .wiki-control/scripts/wiki-generate.mjs \\"
+          },
+          {
+            "name": "Commit generated changes",
+            "detail": "run: git config user.name \"wiki-generator[bot]\""
+          }
+        ]
+      },
+      {
+        "name": "build-and-deploy",
+        "runsOn": "ubuntu-latest",
+        "steps": [
+          {
+            "name": "actions/checkout@v4",
+            "detail": "uses: actions/checkout@v4"
+          },
+          {
+            "name": "actions/setup-node@v4",
+            "detail": "uses: actions/setup-node@v4"
+          },
+          {
+            "name": "Install site dependencies",
+            "detail": "run: npm install --no-audit --no-fund"
+          },
+          {
+            "name": "Build",
+            "detail": "run: npm run build"
+          },
+          {
+            "name": "actions/configure-pages@v4",
+            "detail": "uses: actions/configure-pages@v4"
+          },
+          {
+            "name": "actions/upload-pages-artifact@v3",
+            "detail": "uses: actions/upload-pages-artifact@v3"
+          },
+          {
+            "name": "Deploy to GitHub Pages",
+            "detail": "uses: actions/deploy-pages@v4"
+          }
+        ]
+      }
+    ],
+    "_sourceHash": "dba4e690152095f64a669d03a288702d92c332b7"
+  }
+]

@@ -4,11 +4,11 @@
 // logic in scripts/wiki-extractors/merge.mjs never overwrites or removes
 // entries whose extracted source content has not changed.
 
-import type { MarkdownPageDoc } from '../types';
-import data from './pages.generated.json';
+import type { WorkflowDoc } from '../types';
+import data from './workflows.generated.json';
 
-export const markdownPages = data as unknown as MarkdownPageDoc[];
+export const workflows = data as unknown as WorkflowDoc[];
 
-export function getPage(slug: string) {
-  return markdownPages.find((p) => p.slug === slug);
+export function getWorkflow(slug: string) {
+  return workflows.find((w) => w.slug === slug);
 }

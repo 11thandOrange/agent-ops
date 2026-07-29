@@ -131,9 +131,9 @@ jobs:
           else
             git commit -m "chore(wiki): update generated docs site content
 
-Automated update from scripts/wiki-generate.mjs (agent-ops issue #286) -
-add/updated content only, existing entries whose source is unchanged are
-left untouched."
+          Automated update from scripts/wiki-generate.mjs (agent-ops issue #286) -
+          add/updated content only, existing entries whose source is unchanged are
+          left untouched."
             git push origin HEAD:${{ github.ref_name }}
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
