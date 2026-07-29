@@ -292,7 +292,24 @@ jobs:
             input_elapsed=$((input_elapsed + 1))
           done
 
-          adb -s emulator-5554 shell input keyevent 82
+          # `service check input` reporting "found" only means ServiceManager has a binder
+          # entry registered under that name - confirmed on a real run that the *actual*
+          # InputManager.getInstance() call backing `adb shell input ...` can still throw
+          # "No service published for: input" for a brief moment after that (~170ms observed),
+          # while the service finishes its own internal binding. A few short retries closes
+          # that final gap. This keyevent only dismisses a cosmetic lock screen our tests never
+          # depend on either way, so a failure here is non-fatal (|| true) rather than blocking
+          # the whole run over something that was never load-bearing.
+          keyevent_ok=""
+          for _ in 1 2 3 4 5; do
+            if adb -s emulator-5554 shell input keyevent 82 2>/dev/null; then
+              keyevent_ok="1"
+              break
+            fi
+            sleep 1
+          done
+          [ -n "$keyevent_ok" ] || echo "input keyevent 82 did not succeed after retries, proceeding anyway." >&2
+
           adb -s emulator-5554 shell settings put global window_animation_scale 0.0
           adb -s emulator-5554 shell settings put global transition_animation_scale 0.0
           adb -s emulator-5554 shell settings put global animator_duration_scale 0.0
