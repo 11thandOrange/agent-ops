@@ -4,7 +4,7 @@
     "title": "deploy-docs",
     "file": ".github/workflows/deploy-docs.yml",
     "trigger": "push (branches: [main], paths: [agent-ops-docs/**])  ·  workflow_dispatch",
-    "description": "Extracted from .github/workflows/deploy-docs.yml.",
+    "description": "Builds agent-ops-docs/ and publishes it to GitHub Pages.\n\nTriggers on main, not a separate docs-site branch — the auto-created\ngithub-pages deployment environment restricts deployments to the\ndefault branch, so a separate branch's deploy job was rejected outright\n(zero steps, no logs — a hard environment-level reject, not a build\nfailure). Folding docs-site into main sidesteps that rather than\nfighting the environment's branch-protection rule.\n\nOne-time manual setup required before this can succeed: repo Settings ->\nPages -> Build and deployment -> Source: \"GitHub Actions\" (no MCP/API\ntool in this session's toolset can toggle that setting).",
     "jobs": [
       {
         "name": "build",
@@ -54,7 +54,7 @@
     "title": "deploy-litellm",
     "file": ".github/workflows/deploy-litellm.yml",
     "trigger": "workflow_dispatch  ·  push (branches: [main], paths: [litellm/**])",
-    "description": "Extracted from .github/workflows/deploy-litellm.yml.",
+    "description": "Deploys litellm/ to Cloud Run using only GitHub Secrets — same pattern as\ndeploy-orchestrator.yml, added after the first litellm deploy was done\nmanually via gcloud from a chat session (before this pattern existed).\nTrigger manually (Actions tab -> deploy-litellm -> Run workflow) or\nautomatically on a push to main that touches litellm/.",
     "jobs": [
       {
         "name": "deploy",
@@ -90,7 +90,7 @@
     "title": "deploy-orchestrator",
     "file": ".github/workflows/deploy-orchestrator.yml",
     "trigger": "workflow_dispatch  ·  push (branches: [main], paths: [orchestrator/**])",
-    "description": "Extracted from .github/workflows/deploy-orchestrator.yml.",
+    "description": "Deploys orchestrator/ to Cloud Run using only GitHub Secrets — no\ncredential ever needs to be pasted into chat or stored in this repo.\nTrigger manually (Actions tab -> deploy-orchestrator -> Run workflow)\nor automatically on a push to main that touches orchestrator/.",
     "jobs": [
       {
         "name": "deploy",
@@ -126,7 +126,7 @@
     "title": "e2e-pipeline-reusable",
     "file": ".github/workflows/e2e-pipeline-reusable.yml",
     "trigger": "workflow_call",
-    "description": "Extracted from .github/workflows/e2e-pipeline-reusable.yml.",
+    "description": "Shared e2e test pipeline (BusyBuddy_v2#285 Phase 6). Lives here, once,\ncentrally - each app repo keeps only a thin caller (see\ntemplates/e2e-pipeline-caller.yml) that passes its own install/test commands.\n\nShared: checkout, artifact upload, PR comment, the record_video toggle, and the\ncoverage requirement (tests exist and pass + every critical flow has a test,\nvia a per-repo manifest). Repo-specific: which test framework actually runs\n(Playwright vs. Gradle/Espresso) - never hardcoded here, always an opaque\ninput this workflow passes through without interpreting.\n\nneeds_emulator exists because Android's instrumented tests aren't a \"run a\ncommand\" problem the way Playwright is - the emulator has to be booted and\nstay live for the whole test_command run, not just present beforehand. That's\nthe one real branch point; everything else is identical between stacks.",
     "jobs": [
       {
         "name": "e2e-tests",
@@ -244,7 +244,7 @@
     "title": "sync-upstream",
     "file": ".github/workflows/sync-upstream.yml",
     "trigger": "schedule  ·  workflow_dispatch",
-    "description": "Extracted from .github/workflows/sync-upstream.yml.",
+    "description": "Keeps this fork's main in sync with the canonical, private\nHeyItsChloe/agent-ops main. See CONTRIBUTING.md \"Fork-only content\" for\nwhy a conflicting sync must never auto-resolve: this fork can carry\n11thandOrange-only content (marked `FORK-ONLY: do not upstream`) that a\nroutine sync must not silently overwrite.",
     "jobs": [
       {
         "name": "sync",
@@ -292,7 +292,7 @@
     "title": "wiki-generate-reusable",
     "file": ".github/workflows/wiki-generate-reusable.yml",
     "trigger": "workflow_call",
-    "description": "Extracted from .github/workflows/wiki-generate-reusable.yml.",
+    "description": "The shared wiki generator's actual CI logic lives here, once, centrally\n(agent-ops issue #286, mirroring dev-pipeline-reusable.yml's pattern for\nthe dev-ticket pipeline - see that file's own header comment) - app repos\nkeep only a thin caller workflow (templates/wiki-caller.yml) that passes\ntheir own site_dir/config values.\n\nFlow: checkout the calling (\"target\") repo (already the default checkout\ncontext for a workflow_call job) + this control repo (agent-ops, cross-\naccount, same GH App token trick as dev-pipeline-reusable.yml) -> run\nscripts/wiki-generate.mjs, which reads the target repo's wiki.config.yaml\nand runs only the extractors it declares -> commit any changed generated\nfiles back to the target repo's default branch -> build the site -> ship\nit to GitHub Pages via the same upload-pages-artifact/deploy-pages steps\nBusyBuddy_v2's own deploy-docs.yml already uses.",
     "jobs": [
       {
         "name": "generate-and-commit",

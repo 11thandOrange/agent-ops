@@ -1,0 +1,254 @@
+[
+  {
+    "slug": "wiki-generator",
+    "title": "Wiki Generator",
+    "summary": "Config-driven shared generator that builds a target repo's docs site from its own source, then deploys it to GitHub Pages.",
+    "order": 1,
+    "status": "stable",
+    "implements": {
+      "workflows": [
+        "wiki-generate-reusable"
+      ],
+      "skills": [],
+      "dependencies": [
+        "yaml"
+      ],
+      "integrations": [
+        "github-app",
+        "github-actions"
+      ]
+    },
+    "runWith": [
+      "App repos call the reusable workflow via a thin caller (templates/wiki-caller.yml); locally via node scripts/wiki-generate.mjs."
+    ],
+    "tradeoffs": [
+      "Extractors are resolved by naming convention (config key fooBar -> foo-bar.mjs), so adding a doc kind is a new module plus config key, never a change to the driver's core loop."
+    ],
+    "notes": [
+      {
+        "kind": "note",
+        "body": "The site bootstrap only copies template files that don't already exist, so hand-customized site source is never overwritten on later runs."
+      }
+    ],
+    "contentFile": "features/wiki-generator.md",
+    "_sourceHash": "e39051b9e9db66b6b268de1e76c9a618149a43e3"
+  },
+  {
+    "slug": "dev-ticket-pipeline",
+    "title": "Dev-Ticket Pipeline",
+    "summary": "GitHub-issue-driven development for app repos — plan on approach-ready, implement on approval, all through a labels-and-mentions gate.",
+    "order": 2,
+    "status": "stable",
+    "implements": {
+      "workflows": [],
+      "skills": [
+        "project-conventions",
+        "android-conventions",
+        "approval-gate-protocol"
+      ],
+      "dependencies": [
+        "@heyitschloe/pipeline-orchestrator"
+      ],
+      "integrations": [
+        "github-app",
+        "github-actions",
+        "model-providers"
+      ]
+    },
+    "runWith": [
+      "Registered as pipeline entries in orchestrator/src/registry/pipelines.yaml; each deployment targets one app repo and dispatches its dev-pipeline-reusable.yml."
+    ],
+    "tradeoffs": [
+      "Skills aren't pinned per deployment — they're matched at runtime by the reusable workflow's applies_to matching, so a project's real skill can differ from its registry skill_path."
+    ],
+    "notes": [
+      {
+        "kind": "important",
+        "body": "The reusable workflow dev-pipeline-reusable.yml lives in each target app repo, not in agent-ops, so it is not a local workflow file here."
+      }
+    ],
+    "contentFile": "features/dev-ticket-pipeline.md",
+    "_sourceHash": "e96104b18251422da3a4ab95906bee0785d6a3b5"
+  },
+  {
+    "slug": "job-search-pipeline",
+    "title": "Job Search Pipeline",
+    "summary": "Private in-process pipeline that sources postings, drafts a tailored resume and cover letter as PDFs, and prefills application forms — never submits.",
+    "order": 3,
+    "status": "stable",
+    "implements": {
+      "workflows": [],
+      "skills": [
+        "resume-job-applier"
+      ],
+      "dependencies": [
+        "@heyitschloe/pipeline-orchestrator",
+        "pdfkit",
+        "unpdf",
+        "playwright"
+      ],
+      "integrations": [
+        "model-providers",
+        "serpapi",
+        "jsearch"
+      ]
+    },
+    "runWith": [
+      "Triggered by the chat tool run_personal_project_pipeline or an HTTP request of kind personal; runs in-process inside the orchestrator, with no CI runner to dispatch to."
+    ],
+    "tradeoffs": [
+      "Requests are fully synchronous — scrapeAll/scrapeAny process up to max_results candidates sequentially, each costing a full model call plus PDF render, so a full run can be slow."
+    ],
+    "notes": [
+      {
+        "kind": "important",
+        "body": "The orchestrator pipeline never submits an application and never fills a form on its own — it ends with a reviewable package a human submits themselves."
+      },
+      {
+        "kind": "note",
+        "body": "the-store, applicant background, and each search provider are all feature-gated by env presence, so the pipeline degrades gracefully when they are unset rather than failing the run."
+      }
+    ],
+    "contentFile": "features/job-search-pipeline.md",
+    "_sourceHash": "aae52649e2addb72b7d4a8c8380bc02524d148f9"
+  },
+  {
+    "slug": "e2e-pipeline",
+    "title": "E2E Pipeline",
+    "summary": "Shared reusable GitHub Actions workflow that runs end-to-end tests, with a hardened self-managed Android emulator path.",
+    "order": 4,
+    "status": "stable",
+    "implements": {
+      "workflows": [
+        "e2e-pipeline-reusable"
+      ],
+      "skills": [],
+      "dependencies": [],
+      "integrations": [
+        "github-actions"
+      ]
+    },
+    "runWith": [
+      "Each app repo keeps a thin caller (templates/e2e-pipeline-caller.yml) that passes its own working_directory, install/test commands, and needs_emulator flag."
+    ],
+    "tradeoffs": [
+      "Test framework and commands are opaque pass-through inputs, never interpreted here, so one workflow serves Playwright and Android/Espresso stacks — at the cost of the emulator branch being the one real point of divergence."
+    ],
+    "notes": [
+      {
+        "kind": "warning",
+        "body": "The emulator path launches and boots the AVD itself and adds explicit waits and retries because reactivecircus/android-emulator-runner's internal boot handshake intermittently races the input service and fails the whole step."
+      }
+    ],
+    "contentFile": "features/e2e-pipeline.md",
+    "_sourceHash": "15605bc0dbd38d9b7d6e85ac4a0a821a6af8b07a"
+  },
+  {
+    "slug": "upstream-sync",
+    "title": "Upstream Sync",
+    "summary": "Daily workflow that merges the canonical upstream agent-ops into this fork, pushing clean merges and opening a PR on conflict.",
+    "order": 5,
+    "status": "stable",
+    "implements": {
+      "workflows": [
+        "sync-upstream"
+      ],
+      "skills": [],
+      "dependencies": [],
+      "integrations": [
+        "github-actions",
+        "github-app"
+      ]
+    },
+    "runWith": [
+      "Runs on a daily schedule (09:00 UTC) and on manual workflow_dispatch — no caller needed."
+    ],
+    "tradeoffs": [
+      "It never auto-resolves a conflicting merge, so fork-only content is never silently overwritten — at the cost of a human having to resolve conflict PRs by hand."
+    ],
+    "notes": [
+      {
+        "kind": "warning",
+        "body": "Merge conflicts are left for humans on purpose: this fork can carry 11thandOrange-only files marked FORK-ONLY that a routine sync must not clobber."
+      }
+    ],
+    "contentFile": "features/upstream-sync.md",
+    "_sourceHash": "dcddfdfc6757f8cb8aca193ec3902ef8e15b45d0"
+  },
+  {
+    "slug": "deploys",
+    "title": "Deploys",
+    "summary": "Three GitHub Actions workflows that ship the orchestrator and LiteLLM gateway to Cloud Run and publish the docs site to GitHub Pages.",
+    "order": 6,
+    "status": "stable",
+    "implements": {
+      "workflows": [
+        "deploy-orchestrator",
+        "deploy-litellm",
+        "deploy-docs"
+      ],
+      "skills": [],
+      "dependencies": [],
+      "integrations": [
+        "cloud-run",
+        "github-actions",
+        "litellm"
+      ]
+    },
+    "runWith": [
+      "Each workflow runs on a push to main touching its own path (orchestrator/, litellm/, or agent-ops-docs/) or on manual workflow_dispatch from the Actions tab."
+    ],
+    "tradeoffs": [
+      "gcloud run deploy --env-vars-file replaces a service's env vars on every deploy, so optional secrets are omitted entirely when unset rather than forwarded as empty strings that would defeat the server's own defaults."
+    ],
+    "notes": [
+      {
+        "kind": "warning",
+        "body": "deploy-docs requires a one-time manual setup: repo Settings -> Pages -> Source must be set to \"GitHub Actions\", which no tool in this session can toggle."
+      },
+      {
+        "kind": "note",
+        "body": "The orchestrator service runs with 2Gi memory and a 900s timeout to accommodate headless Chromium scraping and fully synchronous multi-candidate requests."
+      }
+    ],
+    "contentFile": "features/deploys.md",
+    "_sourceHash": "383845e8c003da535126e3434ee5dacb39292a6c"
+  },
+  {
+    "slug": "orchestrator-registry",
+    "title": "Orchestrator Pipeline Registry",
+    "summary": "A single YAML registry where each pipeline is one entry, run by the pipeline-orchestrator engine; adding a pipeline needs no engine code.",
+    "order": 7,
+    "status": "stable",
+    "implements": {
+      "workflows": [
+        "deploy-orchestrator"
+      ],
+      "skills": [],
+      "dependencies": [
+        "@heyitschloe/pipeline-orchestrator",
+        "express",
+        "zod"
+      ],
+      "integrations": [
+        "github-app",
+        "cloud-run",
+        "github-actions"
+      ]
+    },
+    "runWith": [
+      "Runs as an Express service (orchestrator/src/index.ts) deployed to Cloud Run via deploy-orchestrator.yml; locally via npm run dev."
+    ],
+    "tradeoffs": [
+      "Pipelines are declared as data in one registry file rather than encoded in the engine, so onboarding a project is a new YAML entry instead of a code change."
+    ],
+    "notes": [
+      {
+        "kind": "tip",
+        "body": "Set an entry's execution.kind to github-actions to dispatch a reusable workflow in the target repo, or in-process to run inside the orchestrator."
+      }
+    ],
+    "contentFile": "features/orchestrator-registry.md",
+    "_sourceHash": "13788603f33434c6e5cb65e9f27e8ff34a72c66c"
+  }
+]

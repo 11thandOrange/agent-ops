@@ -132,3 +132,67 @@ export interface ChangelogEntry {
   changed: string[];
   fixed: string[];
 }
+
+// ---------------------------------------------------------------------------
+// Authored-content layer (agent-ops issue #286 extension). Facts are still
+// extracted; the entities below carry the agent-authored narrative.
+// ---------------------------------------------------------------------------
+
+export type NoteKind = 'tip' | 'note' | 'warning' | 'important';
+
+export interface NoteBlock {
+  kind: NoteKind;
+  body: string;
+}
+
+export interface FeatureImplements {
+  workflows: string[];
+  skills: string[];
+  dependencies: string[];
+  integrations: string[];
+}
+
+/** A hand-authored feature page (src/content/features/<slug>.md frontmatter). */
+export interface FeatureDoc {
+  slug: string;
+  title: string;
+  summary: string;
+  order: number;
+  status: string;
+  implements: FeatureImplements;
+  runWith: string[];
+  tradeoffs: string[];
+  notes: NoteBlock[];
+  contentFile: string;
+}
+
+/** One SKILL.md, ingested from frontmatter (name/description/applies_to). */
+export interface SkillDoc {
+  slug: string;
+  title: string;
+  description: string;
+  appliesTo: string;
+  category: string;
+  path: string;
+}
+
+/** One declared npm dependency from a package.json manifest. */
+export interface DependencyDoc {
+  slug: string;
+  name: string;
+  version: string;
+  kind: 'dependency' | 'devDependency';
+  component: string;
+  packageFile: string;
+}
+
+/** A non-npm third party (GitHub App, LiteLLM, Cloud Run, APIs), authored in wiki.config.yaml. */
+export interface IntegrationDoc {
+  slug: string;
+  name: string;
+  kind: string;
+  summary: string;
+  auth: string;
+  url: string;
+  notes: NoteBlock[];
+}

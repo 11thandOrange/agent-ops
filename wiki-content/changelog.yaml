@@ -1,0 +1,27 @@
+# Authored changelog for agent-ops, consumed by scripts/wiki-extractors/changelog.mjs.
+# Newest entries first (the site sorts by date regardless). Each entry:
+#   - date: YYYY-MM-DD
+#     added:   [ ... ]
+#     changed: [ ... ]
+#     fixed:   [ ... ]
+
+- date: "2026-07-29"
+  added:
+    - "Documentation site regenerated with a detailed, authored-content layer: per-feature pages, a Skills section, a Dependencies & Integrations catalog, and this Changelog."
+    - "New wiki-generator extractors: features, skills, dependencies, integrations, and changelog."
+    - "Callout blurbs (tip / note / warning / important) rendered throughout the site."
+  changed:
+    - "Header trimmed to the site title (home link) + GitHub; all navigation moved into a collapsible multi-section sidebar."
+    - "Markdown docs now render under their own navSection path (e.g. /roadmap) instead of a single generic /docs bucket."
+    - "The wiki authoring model uses the Anthropic-backed `documentation` alias on the LiteLLM gateway."
+  fixed:
+    - "wiki-generate-reusable.yml is valid YAML again (the commit-message block scalar was terminated by unindented lines)."
+    - "The API sandbox template no longer breaks `tsc` for repos without a backend proxy."
+
+- date: "2026-07-08"
+  added:
+    - "Initial agent-ops docs site and GitHub Pages deploy workflow."
+    - "Shared wiki generator (issue #286): driver, extractors, and the wiki-site template."
+    - "Shared e2e-pipeline-reusable workflow and shared dev skills (code-audit, postman-management, android-conventions)."
+  changed:
+    - "Orchestrator switched to the published @heyitschloe/pipeline-orchestrator package."

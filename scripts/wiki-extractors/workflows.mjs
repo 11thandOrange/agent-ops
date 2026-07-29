@@ -13,6 +13,28 @@ function slugFromFilename(file) {
   return basename(file).replace(/\.ya?ml$/, '');
 }
 
+/**
+ * The first contiguous block of `#` comment lines in a workflow file - these
+ * hand-written header comments are the real "why this workflow exists"
+ * documentation (see e.g. deploy-docs.yml), far more useful than a synthetic
+ * "Extracted from X." string. Returns '' if the file has no such block.
+ */
+function firstCommentBlock(raw) {
+  const lines = raw.split(/\r?\n/);
+  const out = [];
+  let started = false;
+  for (const line of lines) {
+    const isComment = /^\s*#/.test(line);
+    if (isComment) {
+      started = true;
+      out.push(line.replace(/^\s*#\s?/, ''));
+    } else if (started) {
+      break; // end of the first contiguous comment block
+    }
+  }
+  return out.join('\n').trim();
+}
+
 function titleFromWorkflow(doc, file) {
   return doc?.name ?? titleCase(slugFromFilename(file));
 }
@@ -77,7 +99,7 @@ export async function extract({ repoRoot, config, outputPaths }) {
       title: titleFromWorkflow(doc, relFile),
       file: relFile,
       trigger: describeTrigger(doc?.on),
-      description: `Extracted from ${relFile}.`,
+      description: firstCommentBlock(raw) || `Extracted from ${relFile}.`,
       jobs: jobsFromWorkflow(doc),
       _sourceHash: hashSource(raw),
     });
