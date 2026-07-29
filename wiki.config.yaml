@@ -1,17 +1,19 @@
 # wiki.config.yaml - per-repo configuration for the shared wiki generator
-# (agent-ops issue #286). agent-ops is the control repo itself, so it only
-# documents what it actually contains: its GitHub Actions workflows and its
-# hand-written markdown docs. The app-repo extractors (API endpoints, app
-# list, per-repo pipeline automation, e2e test suites) don't apply here -
-# nothing runs a pipeline *against* agent-ops, and it ships no app API - so
-# they stay disabled.
+# (agent-ops issue #286). agent-ops is the control repo itself, so it
+# documents what it actually contains: its features (each pipeline + the
+# wiki generator itself), its GitHub Actions workflows, its shared skills,
+# its dependencies + external integrations, its markdown docs, and a
+# changelog. The app-repo extractors (API endpoints, app list, e2e test
+# suites, per-repo automation) stay disabled - agent-ops ships no app API
+# and nothing runs a pipeline against it.
 #
-# All theming/title/favicon values below are literal, deterministic strings
-# - nothing here is ever LLM-generated.
+# Feature/integration prose is authored (approach A) and committed under
+# agent-ops-docs/src/content/features/ and this file's integrations: block;
+# all theming values below are literal, never LLM-generated.
 
 site:
   title: "agent-ops Docs"
-  description: "Documentation for agent-ops: the pipeline orchestrator, shared skills, and CI/CD workflows."
+  description: "The control plane for a fleet of AI dev & personal pipelines: a pipeline orchestrator, a shared wiki generator, reusable CI, shared skills, and a model gateway."
   theme:
     accent: "#14b8a6"
     accentHover: "#0f9488"
@@ -20,14 +22,84 @@ site:
   githubUrl: "https://github.com/HeyItsChloe/agent-ops"
 
 extractors:
-  # Kind 3: GH Actions workflows -> workflows.ts (CI/CD section)
+  # Authored feature pages (agent-ops-docs/src/content/features/*.md).
+  features:
+    enabled: true
+    dir: features
+
+  # GH Actions workflows -> CI/CD section.
   workflows:
     enabled: true
     glob:
       - ".github/workflows/*.yml"
     exclude: []
 
-  # Kind 6: existing markdown docs, ingested verbatim (not LLM-rewritten) -> pages.ts (Docs section)
+  # SKILL.md files -> Skills section.
+  skills:
+    enabled: true
+    roots:
+      - skills
+
+  # npm dependencies from each component's package.json -> Dependencies section.
+  dependencies:
+    enabled: true
+    manifests:
+      - orchestrator/package.json
+      - scripts/package.json
+      - templates/wiki-site/package.json
+      - templates/wiki-backend/package.json
+
+  # Non-npm third parties (authored) -> Dependencies & Integrations section.
+  integrations:
+    enabled: true
+    items:
+      - slug: github-app
+        name: "Pipeline Orchestrator GitHub App"
+        kind: github-app
+        summary: "The identity the orchestrator and reusable workflows act as - reads issues/labels, dispatches pipelines, and commits generated output back to target repos."
+        auth: "GitHub App JWT exchanged for an installation token (GH_APP_ID + GH_APP_PRIVATE_KEY + per-owner installation IDs)."
+        notes:
+          - kind: note
+            body: "Auth is implemented in orchestrator/src/integrations/github.ts (jsonwebtoken); the reusable wiki/dev workflows mint a token via actions/create-github-app-token."
+      - slug: litellm
+        name: "LiteLLM Gateway"
+        kind: service
+        summary: "A model gateway on Cloud Run. Every pipeline component calls a model alias (planning / implementation / classification / documentation), never a provider SDK directly."
+        auth: "LITELLM_VIRTUAL_KEY against LITELLM_PROXY_URL."
+        notes:
+          - kind: tip
+            body: "Swapping the model behind an alias is a one-line edit in litellm/config.yaml - nothing downstream changes."
+      - slug: cloud-run
+        name: "Google Cloud Run"
+        kind: platform
+        summary: "Hosts the Express orchestrator and the LiteLLM gateway; both deploy from a Dockerfile via their deploy workflows."
+        auth: "GCP service-account key (GCP_SA_KEY)."
+      - slug: supabase
+        name: "Supabase Postgres"
+        kind: database
+        summary: "External Postgres (via the connection pooler) that LiteLLM requires for virtual-key auth."
+        auth: "DATABASE_URL."
+      - slug: serpapi
+        name: "SerpAPI"
+        kind: api
+        summary: "Search provider used by the job-search pipeline to source postings."
+        auth: "SERPAPI_API_KEY."
+      - slug: jsearch
+        name: "JSearch"
+        kind: api
+        summary: "Job-listings API used for sourcing and discovery in the job-search pipeline."
+        auth: "JSEARCH_API_KEY + JSEARCH_BASE_URL."
+      - slug: model-providers
+        name: "Model providers"
+        kind: provider
+        summary: "Anthropic (wiki documentation), Gemini (dev pipelines today), OpenAI (fallback), and Ollama (local classification) - all reached only through the LiteLLM gateway."
+        auth: "ANTHROPIC_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY, held by the gateway."
+      - slug: github-actions
+        name: "GitHub Actions"
+        kind: ci
+        summary: "Runs the reusable pipelines (dev, e2e, wiki) and the deploy workflows for docs, orchestrator, and gateway."
+
+  # Existing markdown docs, ingested verbatim -> one section per navSection.
   markdown:
     enabled: true
     sources:
@@ -37,6 +109,11 @@ extractors:
         navSection: "Contributing"
       - glob: "orchestrator/README.md"
         navSection: "Orchestrator"
+
+  # Authored changelog -> Changelog timeline.
+  changelog:
+    enabled: true
+    source: wiki-content/changelog.yaml
 
   # Not applicable to the control repo - explicitly disabled.
   endpointsExpress:
@@ -50,7 +127,6 @@ extractors:
   appList:
     enabled: false
 
-# Where generated output is written, relative to the wiki-site checkout root.
 output:
   dataDir: "src/data"
   contentDir: "src/content"

@@ -3,7 +3,7 @@
 
 export const wikiConfig = {
   "title": "agent-ops Docs",
-  "description": "Documentation for agent-ops: the pipeline orchestrator, shared skills, and CI/CD workflows.",
+  "description": "The control plane for a fleet of AI dev & personal pipelines: a pipeline orchestrator, a shared wiki generator, reusable CI, shared skills, and a model gateway.",
   "theme": {
     "accent": "#14b8a6",
     "accentHover": "#0f9488",

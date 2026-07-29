@@ -15,9 +15,18 @@ function contentFor(contentFile: string): string | undefined {
   return contentModules[`../content/${contentFile}`];
 }
 
+function slugSection(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
+// Serves every markdown navSection under its own path (/roadmap, /contributing,
+// ...): `:section/:page` renders a specific page; `:section` alone renders the
+// first page in that section.
 export function DocsPage() {
-  const { page: slug } = useParams();
-  const page = slug ? getPage(slug) : markdownPages[0];
+  const { section, page: slug } = useParams();
+  let page = slug ? getPage(slug) : undefined;
+  if (!page && section) page = markdownPages.find((p) => slugSection(p.navSection) === section);
+  if (!page) page = markdownPages[0];
 
   if (!page) {
     return (
@@ -31,7 +40,7 @@ export function DocsPage() {
 
   return (
     <Layout>
-      <Breadcrumbs items={[{ title: page.navSection, href: '/docs' }, { title: page.title }]} />
+      <Breadcrumbs items={[{ title: page.navSection, href: `/${slugSection(page.navSection)}` }, { title: page.title }]} />
       <div className="markdown-body mt-4">
         <ReactMarkdown>{content}</ReactMarkdown>
       </div>

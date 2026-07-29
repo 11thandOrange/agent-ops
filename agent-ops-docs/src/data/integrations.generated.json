@@ -1,0 +1,92 @@
+[
+  {
+    "slug": "github-app",
+    "name": "Pipeline Orchestrator GitHub App",
+    "kind": "github-app",
+    "summary": "The identity the orchestrator and reusable workflows act as - reads issues/labels, dispatches pipelines, and commits generated output back to target repos.",
+    "auth": "GitHub App JWT exchanged for an installation token (GH_APP_ID + GH_APP_PRIVATE_KEY + per-owner installation IDs).",
+    "url": "",
+    "notes": [
+      {
+        "kind": "note",
+        "body": "Auth is implemented in orchestrator/src/integrations/github.ts (jsonwebtoken); the reusable wiki/dev workflows mint a token via actions/create-github-app-token."
+      }
+    ],
+    "_sourceHash": "7919a87d20f0c41aacf851d198fec2b151f64c56"
+  },
+  {
+    "slug": "litellm",
+    "name": "LiteLLM Gateway",
+    "kind": "service",
+    "summary": "A model gateway on Cloud Run. Every pipeline component calls a model alias (planning / implementation / classification / documentation), never a provider SDK directly.",
+    "auth": "LITELLM_VIRTUAL_KEY against LITELLM_PROXY_URL.",
+    "url": "",
+    "notes": [
+      {
+        "kind": "tip",
+        "body": "Swapping the model behind an alias is a one-line edit in litellm/config.yaml - nothing downstream changes."
+      }
+    ],
+    "_sourceHash": "484978b6c69964a68b955e47d59177d5da17e864"
+  },
+  {
+    "slug": "cloud-run",
+    "name": "Google Cloud Run",
+    "kind": "platform",
+    "summary": "Hosts the Express orchestrator and the LiteLLM gateway; both deploy from a Dockerfile via their deploy workflows.",
+    "auth": "GCP service-account key (GCP_SA_KEY).",
+    "url": "",
+    "notes": [],
+    "_sourceHash": "87fad3fd65987798df3219703e6281b8ebfb8f98"
+  },
+  {
+    "slug": "supabase",
+    "name": "Supabase Postgres",
+    "kind": "database",
+    "summary": "External Postgres (via the connection pooler) that LiteLLM requires for virtual-key auth.",
+    "auth": "DATABASE_URL.",
+    "url": "",
+    "notes": [],
+    "_sourceHash": "707433624f3e63d3b2170e8c344803763f8fc3df"
+  },
+  {
+    "slug": "serpapi",
+    "name": "SerpAPI",
+    "kind": "api",
+    "summary": "Search provider used by the job-search pipeline to source postings.",
+    "auth": "SERPAPI_API_KEY.",
+    "url": "",
+    "notes": [],
+    "_sourceHash": "7870c7b9fe977fc827530ca5710f303df40bf964"
+  },
+  {
+    "slug": "jsearch",
+    "name": "JSearch",
+    "kind": "api",
+    "summary": "Job-listings API used for sourcing and discovery in the job-search pipeline.",
+    "auth": "JSEARCH_API_KEY + JSEARCH_BASE_URL.",
+    "url": "",
+    "notes": [],
+    "_sourceHash": "121ac1963a6ee33e85a007db1125c5af81db0849"
+  },
+  {
+    "slug": "model-providers",
+    "name": "Model providers",
+    "kind": "provider",
+    "summary": "Anthropic (wiki documentation), Gemini (dev pipelines today), OpenAI (fallback), and Ollama (local classification) - all reached only through the LiteLLM gateway.",
+    "auth": "ANTHROPIC_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY, held by the gateway.",
+    "url": "",
+    "notes": [],
+    "_sourceHash": "43c99970799458f758218b26a8fc2cb2551b40dc"
+  },
+  {
+    "slug": "github-actions",
+    "name": "GitHub Actions",
+    "kind": "ci",
+    "summary": "Runs the reusable pipelines (dev, e2e, wiki) and the deploy workflows for docs, orchestrator, and gateway.",
+    "auth": "",
+    "url": "",
+    "notes": [],
+    "_sourceHash": "be8260895ea92a977524b476e3437ccf16fb39ca"
+  }
+]

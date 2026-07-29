@@ -1,0 +1,272 @@
+[
+  {
+    "slug": "agent-ops-orchestrator::@heyitschloe/pipeline-orchestrator",
+    "name": "@heyitschloe/pipeline-orchestrator",
+    "version": "^0.1.0",
+    "kind": "dependency",
+    "component": "agent-ops-orchestrator",
+    "packageFile": "orchestrator/package.json",
+    "_sourceHash": "ccb74f83a3fd21ecf8c7767586bc28178ddcc82b"
+  },
+  {
+    "slug": "agent-ops-orchestrator::express",
+    "name": "express",
+    "version": "^4.19.2",
+    "kind": "dependency",
+    "component": "agent-ops-orchestrator",
+    "packageFile": "orchestrator/package.json",
+    "_sourceHash": "86c53884efb604e2db0448effa4559ed031b8e1d"
+  },
+  {
+    "slug": "agent-ops-orchestrator::jsonwebtoken",
+    "name": "jsonwebtoken",
+    "version": "^9.0.2",
+    "kind": "dependency",
+    "component": "agent-ops-orchestrator",
+    "packageFile": "orchestrator/package.json",
+    "_sourceHash": "17150626417dd1f234a78b7a9f5f48e7d11e0988"
+  },
+  {
+    "slug": "agent-ops-orchestrator::pdfkit",
+    "name": "pdfkit",
+    "version": "^0.15.0",
+    "kind": "dependency",
+    "component": "agent-ops-orchestrator",
+    "packageFile": "orchestrator/package.json",
+    "_sourceHash": "b228b78774ffed18e21f4c8202bfb8b2afb76912"
+  },
+  {
+    "slug": "agent-ops-orchestrator::playwright",
+    "name": "playwright",
+    "version": "^1.47.0",
+    "kind": "dependency",
+    "component": "agent-ops-orchestrator",
+    "packageFile": "orchestrator/package.json",
+    "_sourceHash": "e0f1e8eb63db703f6a166a586f3f1963425ecd06"
+  },
+  {
+    "slug": "agent-ops-orchestrator::unpdf",
+    "name": "unpdf",
+    "version": "^1.6.2",
+    "kind": "dependency",
+    "component": "agent-ops-orchestrator",
+    "packageFile": "orchestrator/package.json",
+    "_sourceHash": "541bf6072b337483e776452d8e4f2da9664a918e"
+  },
+  {
+    "slug": "agent-ops-orchestrator::yaml",
+    "name": "yaml",
+    "version": "^2.5.0",
+    "kind": "dependency",
+    "component": "agent-ops-orchestrator",
+    "packageFile": "orchestrator/package.json",
+    "_sourceHash": "62340dc2b4b92f5791f83778a2944698107930c5"
+  },
+  {
+    "slug": "agent-ops-orchestrator::zod",
+    "name": "zod",
+    "version": "^3.23.8",
+    "kind": "dependency",
+    "component": "agent-ops-orchestrator",
+    "packageFile": "orchestrator/package.json",
+    "_sourceHash": "821be93110b2257ae3f98f152b1514a2f39cd2da"
+  },
+  {
+    "slug": "agent-ops-orchestrator::@types/express",
+    "name": "@types/express",
+    "version": "^4.17.21",
+    "kind": "devDependency",
+    "component": "agent-ops-orchestrator",
+    "packageFile": "orchestrator/package.json",
+    "_sourceHash": "8928b2d734c4ff965dfcc8ff99e579732bc2ed49"
+  },
+  {
+    "slug": "agent-ops-orchestrator::@types/jsonwebtoken",
+    "name": "@types/jsonwebtoken",
+    "version": "^9.0.6",
+    "kind": "devDependency",
+    "component": "agent-ops-orchestrator",
+    "packageFile": "orchestrator/package.json",
+    "_sourceHash": "057dbdf9299f4604e34338b1fe0b1fe98188c050"
+  },
+  {
+    "slug": "agent-ops-orchestrator::@types/node",
+    "name": "@types/node",
+    "version": "^20.14.0",
+    "kind": "devDependency",
+    "component": "agent-ops-orchestrator",
+    "packageFile": "orchestrator/package.json",
+    "_sourceHash": "1972f3ef1650ad46d50c5be8dad327e38fc5b749"
+  },
+  {
+    "slug": "agent-ops-orchestrator::@types/pdfkit",
+    "name": "@types/pdfkit",
+    "version": "^0.13.4",
+    "kind": "devDependency",
+    "component": "agent-ops-orchestrator",
+    "packageFile": "orchestrator/package.json",
+    "_sourceHash": "55bb501bb02aa8aee36fd62988f47a1ac4320a21"
+  },
+  {
+    "slug": "agent-ops-orchestrator::tsx",
+    "name": "tsx",
+    "version": "^4.16.0",
+    "kind": "devDependency",
+    "component": "agent-ops-orchestrator",
+    "packageFile": "orchestrator/package.json",
+    "_sourceHash": "fe8282ec86f09c77fbb9b7257d6c90819c7b01d1"
+  },
+  {
+    "slug": "agent-ops-orchestrator::typescript",
+    "name": "typescript",
+    "version": "^5.5.0",
+    "kind": "devDependency",
+    "component": "agent-ops-orchestrator",
+    "packageFile": "orchestrator/package.json",
+    "_sourceHash": "2413efe30ed79a934e1fa42e6bfab3dd6ac37918"
+  },
+  {
+    "slug": "wiki-generator-scripts::yaml",
+    "name": "yaml",
+    "version": "^2.5.0",
+    "kind": "dependency",
+    "component": "wiki-generator-scripts",
+    "packageFile": "scripts/package.json",
+    "_sourceHash": "2022d5d2abc75f8b12c1599ac594ea4a468f97f8"
+  },
+  {
+    "slug": "wiki-site::react",
+    "name": "react",
+    "version": "^18.3.1",
+    "kind": "dependency",
+    "component": "wiki-site",
+    "packageFile": "templates/wiki-site/package.json",
+    "_sourceHash": "0a840110f529be0eaf9dab13bbe7cc72d67914e5"
+  },
+  {
+    "slug": "wiki-site::react-dom",
+    "name": "react-dom",
+    "version": "^18.3.1",
+    "kind": "dependency",
+    "component": "wiki-site",
+    "packageFile": "templates/wiki-site/package.json",
+    "_sourceHash": "9d25b5486ee5a1d759a5ef58e889b6c7a041f59b"
+  },
+  {
+    "slug": "wiki-site::react-router-dom",
+    "name": "react-router-dom",
+    "version": "^6.26.0",
+    "kind": "dependency",
+    "component": "wiki-site",
+    "packageFile": "templates/wiki-site/package.json",
+    "_sourceHash": "ded6b65b2256588b9e7d8a75234c6b6c23512fda"
+  },
+  {
+    "slug": "wiki-site::react-markdown",
+    "name": "react-markdown",
+    "version": "^9.0.1",
+    "kind": "dependency",
+    "component": "wiki-site",
+    "packageFile": "templates/wiki-site/package.json",
+    "_sourceHash": "c6a907a45d98268c2ebcc69ee71a0449f406c54a"
+  },
+  {
+    "slug": "wiki-site::lucide-react",
+    "name": "lucide-react",
+    "version": "^0.400.0",
+    "kind": "dependency",
+    "component": "wiki-site",
+    "packageFile": "templates/wiki-site/package.json",
+    "_sourceHash": "86c08f1ca04a2d1ee0eb254b0dff0c98b44186ac"
+  },
+  {
+    "slug": "wiki-site::@types/react",
+    "name": "@types/react",
+    "version": "^18.3.3",
+    "kind": "devDependency",
+    "component": "wiki-site",
+    "packageFile": "templates/wiki-site/package.json",
+    "_sourceHash": "3cdb7fdbf649df34df61c7ba293928114a75df57"
+  },
+  {
+    "slug": "wiki-site::@types/react-dom",
+    "name": "@types/react-dom",
+    "version": "^18.3.0",
+    "kind": "devDependency",
+    "component": "wiki-site",
+    "packageFile": "templates/wiki-site/package.json",
+    "_sourceHash": "de5f692aa40fde38f1b6486aa837407a815f5fa4"
+  },
+  {
+    "slug": "wiki-site::@vitejs/plugin-react",
+    "name": "@vitejs/plugin-react",
+    "version": "^4.3.1",
+    "kind": "devDependency",
+    "component": "wiki-site",
+    "packageFile": "templates/wiki-site/package.json",
+    "_sourceHash": "289769f5a3ec4f1f5f92b14b05309122bb551f1a"
+  },
+  {
+    "slug": "wiki-site::autoprefixer",
+    "name": "autoprefixer",
+    "version": "^10.4.19",
+    "kind": "devDependency",
+    "component": "wiki-site",
+    "packageFile": "templates/wiki-site/package.json",
+    "_sourceHash": "c400aeff93946dc6799223fd1dca94fafb91ebe2"
+  },
+  {
+    "slug": "wiki-site::postcss",
+    "name": "postcss",
+    "version": "^8.4.39",
+    "kind": "devDependency",
+    "component": "wiki-site",
+    "packageFile": "templates/wiki-site/package.json",
+    "_sourceHash": "0c2cc9ccdefc4a9609dd613366eaedbfecad9f6b"
+  },
+  {
+    "slug": "wiki-site::tailwindcss",
+    "name": "tailwindcss",
+    "version": "^3.4.4",
+    "kind": "devDependency",
+    "component": "wiki-site",
+    "packageFile": "templates/wiki-site/package.json",
+    "_sourceHash": "d12811f982206dcd416b114fcf69e1be2303746c"
+  },
+  {
+    "slug": "wiki-site::typescript",
+    "name": "typescript",
+    "version": "^5.5.3",
+    "kind": "devDependency",
+    "component": "wiki-site",
+    "packageFile": "templates/wiki-site/package.json",
+    "_sourceHash": "1bd5c0c4b7fcf5291e28e9b7982d2cb62c75e076"
+  },
+  {
+    "slug": "wiki-site::vite",
+    "name": "vite",
+    "version": "^5.3.3",
+    "kind": "devDependency",
+    "component": "wiki-site",
+    "packageFile": "templates/wiki-site/package.json",
+    "_sourceHash": "1f389110a314120251057e2e8ac792a7012d85b0"
+  },
+  {
+    "slug": "wiki-backend::express",
+    "name": "express",
+    "version": "^4.19.2",
+    "kind": "dependency",
+    "component": "wiki-backend",
+    "packageFile": "templates/wiki-backend/package.json",
+    "_sourceHash": "0a27467e0b39268d67d76d4ab665715264e93aea"
+  },
+  {
+    "slug": "wiki-backend::cors",
+    "name": "cors",
+    "version": "^2.8.5",
+    "kind": "dependency",
+    "component": "wiki-backend",
+    "packageFile": "templates/wiki-backend/package.json",
+    "_sourceHash": "485aa0e2e75e308ecfb8cb4bdfa0bf03e2e3d517"
+  }
+]

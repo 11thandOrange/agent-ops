@@ -6,16 +6,27 @@ import { CiCd } from './pages/CiCd';
 import { Automation } from './pages/Automation';
 import { Tests } from './pages/Tests';
 import { DocsPage } from './pages/DocsPage';
+import { Features } from './pages/Features';
+import { Skills } from './pages/Skills';
+import { Dependencies } from './pages/Dependencies';
+import { Changelog } from './pages/Changelog';
 
-// HashRouter (#/api/bundles, etc.) per issue #286 - GitHub Pages project
-// sites (and the many differently-hosted repos this template targets) have
-// no server-side rewrite for deep-linked client-side routes, so this
+// HashRouter (#/features, etc.) per issue #286 - GitHub Pages project sites
+// (and the many differently-hosted repos this template targets) have no
+// server-side rewrite for deep-linked client-side routes, so this
 // deliberately does not switch to BrowserRouter.
+//
+// Static section routes are declared explicitly; the trailing `:section` /
+// `:section/:page` routes catch every markdown navSection (roadmap,
+// contributing, ...) generically - React Router ranks the static routes
+// above these dynamic ones, so they never shadow a named section.
 function App() {
   return (
     <HashRouter>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/features" element={<Features />} />
+        <Route path="/features/:slug" element={<Features />} />
         <Route path="/api" element={<ApiReference />} />
         <Route path="/api/:group" element={<ApiReference />} />
         <Route path="/apps" element={<AppList />} />
@@ -24,9 +35,13 @@ function App() {
         <Route path="/ci-cd/:workflow" element={<CiCd />} />
         <Route path="/automation" element={<Automation />} />
         <Route path="/automation/:pipeline" element={<Automation />} />
+        <Route path="/skills" element={<Skills />} />
+        <Route path="/skills/:slug" element={<Skills />} />
         <Route path="/tests" element={<Tests />} />
-        <Route path="/docs" element={<DocsPage />} />
-        <Route path="/docs/:page" element={<DocsPage />} />
+        <Route path="/dependencies" element={<Dependencies />} />
+        <Route path="/changelog" element={<Changelog />} />
+        <Route path="/:section/:page" element={<DocsPage />} />
+        <Route path="/:section" element={<DocsPage />} />
         <Route path="*" element={<Home />} />
       </Routes>
     </HashRouter>

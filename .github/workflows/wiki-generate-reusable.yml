@@ -40,11 +40,25 @@ on:
         required: false
         type: string
         default: main
+      # Opt-in: run the documentation-authoring agent (scripts/wiki-author.mjs)
+      # before extraction, drafting any missing feature content via the
+      # Anthropic-backed `documentation` alias on the LiteLLM gateway. Default
+      # off — most runs just extract facts and rebuild already-authored prose.
+      author_content:
+        required: false
+        type: boolean
+        default: false
     secrets:
       GH_APP_ID:
         required: true
       GH_APP_PRIVATE_KEY:
         required: true
+      # Only needed when author_content is true; the gateway holds the
+      # provider (Anthropic) key — this workflow only calls the alias.
+      LITELLM_PROXY_URL:
+        required: false
+      LITELLM_VIRTUAL_KEY:
+        required: false
 
 permissions:
   contents: read
@@ -110,6 +124,16 @@ jobs:
       - name: Install generator script dependencies
         run: npm install --no-audit --no-fund
         working-directory: .wiki-control/scripts
+
+      - name: Author docs content (optional)
+        if: ${{ inputs.author_content }}
+        env:
+          LITELLM_PROXY_URL: ${{ secrets.LITELLM_PROXY_URL }}
+          LITELLM_VIRTUAL_KEY: ${{ secrets.LITELLM_VIRTUAL_KEY }}
+        run: |
+          node .wiki-control/scripts/wiki-author.mjs \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --site-dir "${{ inputs.site_dir }}"
 
       - name: Run wiki generator
         run: |

@@ -71,9 +71,20 @@ function bootstrapSiteIfMissing(controlRepoRoot, siteRoot) {
 }
 
 /** Derives src/data/navigation.ts from whichever data kinds this repo's config actually enabled - never hand-maintained per repo. */
+function slugifySection(s) {
+  return String(s)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
 function writeNavigation(config, outputPaths) {
   const sections = [];
   const e = config.extractors;
+
+  if (e.features?.enabled) {
+    sections.push({ key: 'features', title: 'Features', href: '/features', dataImport: "import { features } from './features';", childrenExpr: 'features.map((f) => ({ title: f.title, href: `/features/${f.slug}` }))' });
+  }
   if (e.endpointsExpress?.enabled || e.endpointsKotlin?.enabled) {
     sections.push({ key: 'api', title: 'API Reference', href: '/api', dataImport: "import { endpointGroups } from './endpoints';", childrenExpr: 'endpointGroups.map((g) => ({ title: g.title, href: `/api/${g.slug}` }))' });
   }
@@ -86,24 +97,62 @@ function writeNavigation(config, outputPaths) {
   if (e.automation?.enabled) {
     sections.push({ key: 'automation', title: 'Automation', href: '/automation', dataImport: "import { automation } from './automation';", childrenExpr: 'automation.map((a) => ({ title: a.name, href: `/automation/${a.slug}` }))' });
   }
+  if (e.skills?.enabled) {
+    sections.push({ key: 'skills', title: 'Skills', href: '/skills', dataImport: "import { skills } from './skills';", childrenExpr: 'skills.map((s) => ({ title: s.title, href: `/skills/${s.slug}` }))' });
+  }
   if (e.tests?.enabled) {
     sections.push({ key: 'tests', title: 'Test Coverage', href: '/tests', dataImport: "import { testSuites } from './tests';", childrenExpr: 'testSuites.map((t) => ({ title: t.name, href: `/tests/${t.slug}` }))' });
   }
-  if (e.markdown?.enabled) {
-    sections.push({ key: 'docs', title: 'Docs', href: '/docs', dataImport: "import { markdownPages } from './pages';", childrenExpr: 'markdownPages.map((p) => ({ title: p.title, href: `/docs/${p.slug}` }))' });
+  if (e.dependencies?.enabled || e.integrations?.enabled) {
+    sections.push({ key: 'dependencies', title: 'Dependencies & Integrations', href: '/dependencies', dataImport: null, childrenExpr: '[]' });
   }
 
-  const imports = ["import type { NavSection } from '../types';", ...sections.map((s) => s.dataImport)].join('\n');
+  // Markdown: one section per distinct navSection (read from the extracted
+  // pages sidecar), keyed by a slug of the navSection - so a repo's roadmap/
+  // docs land at /roadmap, contributing at /contributing, etc., instead of a
+  // single generic "Docs" bucket.
+  if (e.markdown?.enabled) {
+    const pagesPath = join(outputPaths.dataDir, 'pages.generated.json');
+    const pages = existsSync(pagesPath) ? JSON.parse(readFileSync(pagesPath, 'utf8')) : [];
+    const seen = new Map(); // navSection title -> key
+    for (const p of pages) {
+      const nav = p.navSection || 'Docs';
+      if (!seen.has(nav)) seen.set(nav, slugifySection(nav));
+    }
+    for (const [title, key] of seen) {
+      sections.push({
+        key,
+        title,
+        href: `/${key}`,
+        dataImport: "import { markdownPages } from './pages';",
+        childrenExpr: `markdownPages.filter((p) => p.navSection === ${JSON.stringify(title)}).map((p) => ({ title: p.title, href: \`/${key}/\${p.slug}\` }))`,
+      });
+    }
+  }
+
+  if (e.changelog?.enabled) {
+    sections.push({ key: 'changelog', title: 'Changelog', href: '/changelog', dataImport: null, childrenExpr: '[]' });
+  }
+
+  const importLines = ["import type { NavSection } from '../types';"];
+  const seenImports = new Set();
+  for (const s of sections) {
+    if (s.dataImport && !seenImports.has(s.dataImport)) {
+      seenImports.add(s.dataImport);
+      importLines.push(s.dataImport);
+    }
+  }
+
   const body = [
-    imports,
+    importLines.join('\n'),
     '',
-    "export const topNav: { title: string; href: string }[] = [",
-    "  { title: 'Home', href: '/' },",
-    ...sections.map((s) => `  { title: '${s.title}', href: '${s.href}' },`),
+    '// No "Home" entry: the site title in the header is the home link.',
+    'export const topNav: { title: string; href: string }[] = [',
+    ...sections.map((s) => `  { title: ${JSON.stringify(s.title)}, href: '${s.href}' },`),
     '];',
     '',
     'export const sidebarSections: Record<string, NavSection> = {',
-    ...sections.map((s) => `  '${s.key}': { title: '${s.title}', href: '${s.href}', children: ${s.childrenExpr} },`),
+    ...sections.map((s) => `  '${s.key}': { title: ${JSON.stringify(s.title)}, href: '${s.href}', children: ${s.childrenExpr} },`),
     '};',
     '',
     'export function sectionKeyForPath(pathname: string): string {',

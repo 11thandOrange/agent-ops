@@ -82,14 +82,20 @@ export function Sandbox({ endpoint }: SandboxProps) {
   };
 
   const send = async () => {
-    if (!wikiConfig.proxyBaseUrl) {
+    // Widen to string before the emptiness guard: wiki.config.generated.ts
+    // is emitted `as const`, so when backend.proxyBaseUrl is unset it has
+    // the literal type "" and the guard below would narrow it to `never`,
+    // breaking the .replace() call for any repo that doesn't configure a
+    // backend proxy (e.g. agent-ops's own docs site).
+    const proxyBaseUrl: string = wikiConfig.proxyBaseUrl;
+    if (!proxyBaseUrl) {
       setResult({ error: 'No backend proxy configured (wikiConfig.proxyBaseUrl is empty) - set backend.proxyBaseUrl in wiki.config.yaml.' });
       return;
     }
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch(`${wikiConfig.proxyBaseUrl.replace(/\/$/, '')}/api/proxy`, {
+      const res = await fetch(`${proxyBaseUrl.replace(/\/$/, '')}/api/proxy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
