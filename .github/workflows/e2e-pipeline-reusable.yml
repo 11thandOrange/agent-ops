@@ -211,8 +211,37 @@ jobs:
           SCRIPT_EOF
           chmod +x "$RUNNER_TEMP/run-emulator-tests.sh"
 
+      # reactivecircus/android-emulator-runner's own boot sequence intermittently fails before
+      # our script ever runs: it polls `adb shell getprop sys.boot_completed` (returns 1), then
+      # immediately fires `adb shell input keyevent 82` to dismiss any lock screen - but the
+      # emulator's `input` system service isn't actually registered yet, so that throws
+      # `IllegalStateException: ... No service published for: input` and the whole step errors
+      # out. Confirmed on multiple real runs (OrderMate, 2026-07-29) - it's a race inside the
+      # action itself (not editable from here) that shows up before Gradle/tests ever start, so
+      # a real test failure and this infra flake are never confused: the flake always dies here,
+      # a real failure always gets past it. One retry of the whole step is the standard
+      # mitigation - continue-on-error lets a first-attempt failure fall through to the retry
+      # instead of failing the job outright; the retry itself has no continue-on-error, so a
+      # second failure (infra flake twice in a row, or a genuine test failure) still fails the
+      # job normally.
       - name: Run tests
         id: run
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ inputs.emulator_api_level }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          working-directory: ${{ inputs.working_directory }}
+          script: RECORD_VIDEO="${{ inputs.record_video }}" TEST_COMMAND="${{ inputs.test_command }}" sh "$RUNNER_TEMP/run-emulator-tests.sh"
+
+      - name: Retry tests after emulator boot flake
+        id: run-retry
+        if: steps.run.outcome == 'failure'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ inputs.emulator_api_level }}
@@ -261,7 +290,10 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const passed = '${{ steps.run.outcome }}' === 'success';
+            // steps.run has continue-on-error: true (see the boot-flake comment above), so a
+            // real failure there only shows up as 'failure' if the retry either didn't run
+            // (skipped - meaning the first attempt actually succeeded) or also failed.
+            const passed = '${{ steps.run.outcome }}' === 'success' || '${{ steps.run-retry.outcome }}' === 'success';
             const icon = passed ? '✅' : '❌';
             const status = passed ? 'PASSED' : 'FAILED';
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
