@@ -20,15 +20,26 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      - name: Mint token for pushing to this repo
+        uses: actions/create-github-app-token@v1
+        id: self-token
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: 11thandOrange
+          repositories: agent-ops
+
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-          # Default GITHUB_TOKEN is used for the push/PR side (this repo's
-          # own token already has write access to itself) — but checkout
-          # still needs a token now so the later `git push` steps below
-          # authenticate correctly against this repo.
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # The default GITHUB_TOKEN can never create or update files under
+          # .github/workflows/* - that's a hard GitHub platform restriction
+          # on the automatic token, not something any repo/App setting can
+          # lift. Use the App token instead (App has Actions: Read and
+          # write, which does cover workflow files for App-issued tokens)
+          # so the git push steps below can actually land workflow changes.
+          token: ${{ steps.self-token.outputs.token }}
 
       - name: Mint upstream-scoped App token
         uses: actions/create-github-app-token@v1
@@ -81,7 +92,7 @@ jobs:
       - name: Open PR for human resolution
         if: steps.merge.outputs.conflict == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.self-token.outputs.token }}
         run: |
           gh pr create \
             --title "sync-upstream: conflict merging HeyItsChloe/agent-ops main" \
