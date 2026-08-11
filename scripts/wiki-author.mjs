@@ -50,7 +50,9 @@ function parseArgs(argv) {
 const FEATURE_SYSTEM = `You write documentation for a software repo's wiki. Output ONLY a single markdown file: YAML frontmatter delimited by --- lines, then the body. Frontmatter keys: title, order (int), summary (<=160 chars), status, implements (workflows/skills/dependencies/integrations: arrays of slugs), runWith (array), tradeoffs (array), notes (array of {kind: tip|note|warning|important, body}). Body sections: "## What it does", "## How it works", "## Configuration & running". Be accurate and concise. Never invent file names, packages, or behavior beyond the provided facts.`;
 
 async function chat(model, system, user) {
-  const res = await fetch(`${PROXY.replace(/\/$/, '')}/v1/chat/completions`, {
+  // LITELLM_PROXY_URL already ends in /v1, so the path is /chat/completions
+  // (not /v1/chat/completions) — matches orchestrator/src/integrations/litellm.ts.
+  const res = await fetch(`${PROXY.replace(/\/+$/, '')}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${KEY}` },
     body: JSON.stringify({
